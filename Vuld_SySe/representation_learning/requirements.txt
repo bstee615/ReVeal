@@ -4,3 +4,4 @@ numpy==1.16.3
 sklearn
 matplotlib
 tqdm
+seaborn
