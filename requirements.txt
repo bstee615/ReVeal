@@ -1,0 +1,11 @@
+torch==1.4.0
+gensim==3.8.0
+numpy==1.16.5
+tqdm==4.36.1
+matplotlib
+scikit-learn
+seaborn
+#pygraphviz # Used by Joern?
+graphviz==0.16 # Used by slicer.sh
+pandas
+#rpy2 # Used by Vuld_SySe/visuals/lemna.py
