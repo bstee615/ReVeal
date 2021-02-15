@@ -10,4 +10,6 @@ graphviz==0.16 # Used by slicer.sh
 pandas
 #rpy2 # Used by Vuld_SySe/visuals/lemna.py
 nltk
-clang
+clang~=6.0.0
+dgl
+
