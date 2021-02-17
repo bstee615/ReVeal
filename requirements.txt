@@ -11,5 +11,5 @@ pandas
 #rpy2 # Used by Vuld_SySe/visuals/lemna.py
 nltk
 clang~=6.0.0
-dgl
+dgl-cu101
 
