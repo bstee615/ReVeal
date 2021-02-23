@@ -14,11 +14,11 @@ def raw_code2dict(file_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--project', help='project of code base from which to take raw code', default='chrome_debian')
+    parser.add_argument('--input', help='directory where raw code and parsed are stored', default='../data/chrome_debian')
     parser.add_argument('--output', help='output directory for resulting json file', default='../data/ggnn_input/')
     args = parser.parse_args()
 
-    code_file_path = '../data/' + args.project + '/raw_code/'
+    code_file_path = args.input + '/raw_code/'
 
     output_data = []
     for cfile in tqdm(os.listdir(code_file_path)):
