@@ -14,17 +14,23 @@ from gensim.models import Word2Vec
 try:
     # set the config
     clang.cindex.Config.set_library_path("/usr/lib/x86_64-linux-gnu")
-    clang.cindex.Config.set_library_file('/usr/lib/x86_64-linux-gnu/libclang-10.so.1')
+    clang.cindex.Config.set_library_file('/usr/lib/x86_64-linux-gnu/libclang-6.0.so.1')
 except:
     pass   
 
-base_dir = '../data/full_experiment_real_data/'
-project = 'chrome_debian'
+parser = argparse.ArgumentParser()
+parser.add_argument('--project', help='name of project for differentiating files', default='chrome_debian')
+parser.add_argument('--input', help='directory where raw code and parsed are stored', default='../data/chrome_debian')
+parser.add_argument('--base', help='paths to loaction of json shards to be ccombined', default='../data/full_experiment_real_data/')
+parser.add_argument('--output', help='output directory for resulting json file', default='../data/full_experiment_real_data_processed/')
+args = parser.parse_args()
+
+base_dir = args.base
+project = args.project
 shards = os.listdir(os.path.join(base_dir, project))
 
 def extract_graph_data(
-    project, portion, base_dir='../data/full_experiment_real_data/', 
-    output_dir='../data/full_experiment_real_data_processed/'):
+    project, portion, base_dir=args.base, output_dir=args.output):
     assert portion in ['full_graph', 'cgraph', 'dgraph', 'cdgraph']
     shards = os.listdir(os.path.join(base_dir, project))
     shard_count = len(shards)
@@ -61,7 +67,7 @@ def extract_graph_data(
     output_file.close()
     print(project, portion, len(total_functions), len(in_scope_function), vnt, nvnt, sep='\t')
 
-extract_graph_data('chrome_debian', 'full_graph')
+extract_graph_data(args.project, 'full_graph')
 
 keywords = ["alignas", "alignof", "and", "and_eq", "asm", "atomic_cancel", "atomic_commit", 
             "atomic_noexcept", "auto", "bitand", "bitor", "bool", "break", "case", "catch", 
@@ -567,22 +573,21 @@ def reformat_code_line_graph(code_lines, adjacency_lists, lanel, wv_model_origin
     }
     return data_point
 
-wv_model_li = Word2Vec.load('../data/Word2Vec/li_et_al_wv')
+wv_model_li = Word2Vec.load('~/keid/ReVeal/data/Word2Vec/li_et_al_wv')
                                     
 ggnn_data = []
 
 def extract_line_graph_data(
-    project, base_dir='../data/full_experiment_real_data/', 
-    output_dir='../data/full_experiment_real_data_processed/'):
+    project, base_dir=args.base, output_dir=args.output):
     if project == 'devign':
         split_dir = '../data/neurips_parsed/neurips_data/'
         parsed = '../data/neurips_parsed/parsed_results/'
         wv_path = '../data/neurips_parsed/raw_code_neurips.100'
         wv_model_original = Word2Vec.load(wv_path)
     else:
-        split_dir = '../data/chrome_debian/raw_code/'
-        parsed = '../data/chrome_debian/parsed/'
-        wv_path = '../data/chrome_debian/raw_code_deb_chro.100'
+        split_dir = args.input + 'raw_code/'
+        parsed = args.input + 'parsed/'
+        wv_path = args.input + 'raw_code_deb_chro.100'
         wv_model_original = Word2Vec.load(wv_path)
     shards = os.listdir(os.path.join(base_dir, project))
     shard_count = len(shards)
@@ -620,4 +625,4 @@ def extract_line_graph_data(
     print(len(graphs))
 #     return graphs
 
-graph_data = extract_line_graph_data('chrome_debian')
+graph_data = extract_line_graph_data(args.project)

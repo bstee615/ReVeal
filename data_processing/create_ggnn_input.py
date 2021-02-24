@@ -14,6 +14,7 @@ def raw_code2dict(file_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--project', help='name of project for differentiating files', default='chrome_debian')
     parser.add_argument('--input', help='directory where raw code and parsed are stored', default='../data/chrome_debian')
     parser.add_argument('--output', help='output directory for resulting json file', default='../data/ggnn_input/')
     args = parser.parse_args()

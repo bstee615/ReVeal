@@ -18,14 +18,6 @@ try:
 except:
     pass
 
-split_dir = '../data/chrome_debian/raw_code/'
-parsed = '../data/chrome_debian/parsed/'
-
-ggnn_json_data = json.load(open('../data/ggnn_input/chrome_debian_cfg_full_text_files.json'))
-files = [d['file_name'] for d in ggnn_json_data]
-print(f'Number of Input Files: {len(files)}')
-
-
 l_funcs = ['StrNCat', 'getaddrinfo', '_ui64toa', 'fclose', 'pthread_mutex_lock', 'gets_s', 'sleep', 
            '_ui64tot', 'freopen_s', '_ui64tow', 'send', 'lstrcat', 'HMAC_Update', '__fxstat', 'StrCatBuff', 
            '_mbscat', '_mbstok_s', '_cprintf_s', 'ldap_search_init_page', 'memmove_s', 'ctime_s', 'vswprintf', 
@@ -210,7 +202,6 @@ def extract_nodes_with_location_info(nodes):
     return node_indices, node_ids, line_numbers, node_id_to_line_number
     pass
 
-
 def create_adjacency_list(line_numbers, node_id_to_line_numbers, edges, data_dependency_only=False):
     adjacency_list = {}
     for ln in set(line_numbers):
@@ -383,156 +374,171 @@ def extract_line_number(idx, nodes):
         idx -= 1
     return -1
 
-all_data = []
-    
-for i, file_name  in enumerate(files):
-    label = file_name.strip()[:-2].split('_')[-1]
-    code_text = read_file(split_dir + file_name.strip())
-    
-    nodes_file_path = parsed + file_name.strip() + '/nodes.csv'
-    edges_file_path = parsed + file_name.strip() + '/edges.csv'
-    nc = open(nodes_file_path)
-    nodes_file = csv.DictReader(nc, delimiter='\t')
-    nodes = [node for node in nodes_file]
-    call_lines = set()
-    array_lines = set()
-    ptr_lines = set()
-    arithmatic_lines = set()
-    
-    if len(nodes) == 0:
-        continue
-    
-    for node_idx, node in enumerate(nodes):
-        ntype = node['type'].strip()
-        if ntype == 'CallExpression':
-            function_name = nodes[node_idx + 1]['code']
-            if function_name  is None or function_name.strip() == '':
-                continue
-            if function_name.strip() in l_funcs:
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--project', help='name of project for differentiating files', default='chrome_debian')
+    parser.add_argument('--input', help='directory where raw code and parsed are stored', default='../data/chrome_debian')
+    parser.add_argument('--text_in', help='path to cfg_full_text_files', default='../data/ggnn_input/')
+    parser.add_argument('--output', help='output path for sliced full data json', default='../data/')
+    args = parser.parse_args()
+
+    split_dir = args.input + 'raw_code/'
+    parsed = args.input + 'parsed/'
+
+    ggnn_json_data = json.load(open(args.text_in + args.project + '_cfg_full_text_files.json'))
+    files = [d['file_name'] for d in ggnn_json_data]
+    print(f'Number of Input Files: {len(files)}')
+
+    all_data = []
+        
+    for i, file_name  in enumerate(files):
+        label = file_name.strip()[:-2].split('_')[-1]
+        code_text = read_file(split_dir + file_name.strip())
+        
+        nodes_file_path = parsed + file_name.strip() + '/nodes.csv'
+        edges_file_path = parsed + file_name.strip() + '/edges.csv'
+        nc = open(nodes_file_path)
+        nodes_file = csv.DictReader(nc, delimiter='\t')
+        nodes = [node for node in nodes_file]
+        call_lines = set()
+        array_lines = set()
+        ptr_lines = set()
+        arithmatic_lines = set()
+        
+        if len(nodes) == 0:
+            continue
+        
+        for node_idx, node in enumerate(nodes):
+            ntype = node['type'].strip()
+            if ntype == 'CallExpression':
+                function_name = nodes[node_idx + 1]['code']
+                if function_name  is None or function_name.strip() == '':
+                    continue
+                if function_name.strip() in l_funcs:
+                    line_no = extract_line_number(node_idx, nodes)
+                    if line_no > 0:
+                        call_lines.add(line_no)
+            elif ntype == 'ArrayIndexing':
                 line_no = extract_line_number(node_idx, nodes)
                 if line_no > 0:
-                    call_lines.add(line_no)
-        elif ntype == 'ArrayIndexing':
-            line_no = extract_line_number(node_idx, nodes)
-            if line_no > 0:
-                array_lines.add(line_no)
-        elif ntype == 'PtrMemberAccess':
-            line_no = extract_line_number(node_idx, nodes)
-            if line_no > 0:
-                ptr_lines.add(line_no)
-        elif node['operator'].strip() in ['+', '-', '*', '/']:
-            line_no = extract_line_number(node_idx, nodes)
-            if line_no > 0:
-                arithmatic_lines.add(line_no)
+                    array_lines.add(line_no)
+            elif ntype == 'PtrMemberAccess':
+                line_no = extract_line_number(node_idx, nodes)
+                if line_no > 0:
+                    ptr_lines.add(line_no)
+            elif node['operator'].strip() in ['+', '-', '*', '/']:
+                line_no = extract_line_number(node_idx, nodes)
+                if line_no > 0:
+                    arithmatic_lines.add(line_no)
+            
+        nodes = read_csv(nodes_file_path)
+        edges = read_csv(edges_file_path)
+        node_indices, node_ids, line_numbers, node_id_to_ln = extract_nodes_with_location_info(nodes)
+        adjacency_list = create_adjacency_list(line_numbers, node_id_to_ln, edges, False)
+        combined_graph = combine_control_and_data_adjacents(adjacency_list)
         
-    nodes = read_csv(nodes_file_path)
-    edges = read_csv(edges_file_path)
-    node_indices, node_ids, line_numbers, node_id_to_ln = extract_nodes_with_location_info(nodes)
-    adjacency_list = create_adjacency_list(line_numbers, node_id_to_ln, edges, False)
-    combined_graph = combine_control_and_data_adjacents(adjacency_list)
-    
-    array_slices = []
-    array_slices_bdir = []
-    call_slices = []
-    call_slices_bdir = []
-    arith_slices = []
-    arith_slices_bdir = []
-    ptr_slices = []
-    ptr_slices_bdir = []
-    all_slices = []
-    
-    
-    all_keys = set()
-    _keys = set()
-    for slice_ln in call_lines:
-        forward_sliced_lines = create_forward_slice(combined_graph, slice_ln)
-        backward_sliced_lines = create_backward_slice(combined_graph, slice_ln)
-        all_slice_lines = forward_sliced_lines
-        all_slice_lines.extend(backward_sliced_lines)
-        all_slice_lines = sorted(list(set(all_slice_lines)))
-        key = ' '.join([str(i) for i in all_slice_lines])
-        if key not in _keys:
-            call_slices.append(backward_sliced_lines)
-            call_slices_bdir.append(all_slice_lines)
-            _keys.add(key)
-        if key not in all_keys:
-            all_slices.append(all_slice_lines)
-            all_keys.add(key)
-            
-    _keys = set()
-    for slice_ln in array_lines:
-        forward_sliced_lines = create_forward_slice(combined_graph, slice_ln)
-        backward_sliced_lines = create_backward_slice(combined_graph, slice_ln)
-        all_slice_lines = forward_sliced_lines
-        all_slice_lines.extend(backward_sliced_lines)
-        all_slice_lines = sorted(list(set(all_slice_lines)))
-        key = ' '.join([str(i) for i in all_slice_lines])
-        if key not in _keys:
-            array_slices.append(backward_sliced_lines)
-            array_slices_bdir.append(all_slice_lines)
-            _keys.add(key)
-        if key not in all_keys:
-            all_slices.append(all_slice_lines)
-            all_keys.add(key)
-    
-    _keys = set()
-    for slice_ln in arithmatic_lines:
-        forward_sliced_lines = create_forward_slice(combined_graph, slice_ln)
-        backward_sliced_lines = create_backward_slice(combined_graph, slice_ln)
-        all_slice_lines = forward_sliced_lines
-        all_slice_lines.extend(backward_sliced_lines)
-        all_slice_lines = sorted(list(set(all_slice_lines)))
-        key = ' '.join([str(i) for i in all_slice_lines])
-        if key not in _keys:
-            arith_slices.append(backward_sliced_lines)
-            arith_slices_bdir.append(all_slice_lines)
-            _keys.add(key)
-        if key not in all_keys:
-            all_slices.append(all_slice_lines)
-            all_keys.add(key)
-    
-    _keys = set()
-    for slice_ln in ptr_lines:
-        forward_sliced_lines = create_forward_slice(combined_graph, slice_ln)
-        backward_sliced_lines = create_backward_slice(combined_graph, slice_ln)
-        all_slice_lines = forward_sliced_lines
-        all_slice_lines.extend(backward_sliced_lines)
-        all_slice_lines = sorted(list(set(all_slice_lines)))
-        key = ' '.join([str(i) for i in all_slice_lines])
-        if key not in _keys:
-            ptr_slices.append(backward_sliced_lines)
-            ptr_slices_bdir.append(all_slice_lines)
-            _keys.add(key)
-        if key not in all_keys:
-            all_slices.append(all_slice_lines)
-            all_keys.add(key)
-            
-    t_code = tokenize(code_text)
-    if t_code is None:
-        continue
-    data_instance = {
-        'file_path': split_dir + file_name.strip(),
-        'code' : code_text,
-        'tokenized': t_code,
-        'call_slices_vd': call_slices,
-        'call_slices_sy': call_slices_bdir,
-        'array_slices_vd': array_slices,
-        'array_slices_sy': array_slices_bdir,
-        'arith_slices_vd': arith_slices,
-        'arith_slices_sy': arith_slices_bdir,
-        'ptr_slices_vd': ptr_slices,
-        'ptr_slices_sy': ptr_slices_bdir,
-        'label': int(label)
-    }
-    all_data.append(data_instance)
-    
-    if i % 1000 == 0:
-        print(i, len(call_slices), len(call_slices_bdir), 
-              len(array_slices), len(array_slices_bdir), 
-              len(arith_slices), len(arith_slices_bdir), sep='\t')
+        array_slices = []
+        array_slices_bdir = []
+        call_slices = []
+        call_slices_bdir = []
+        arith_slices = []
+        arith_slices_bdir = []
+        ptr_slices = []
+        ptr_slices_bdir = []
+        all_slices = []
+        
+        
+        all_keys = set()
+        _keys = set()
+        for slice_ln in call_lines:
+            forward_sliced_lines = create_forward_slice(combined_graph, slice_ln)
+            backward_sliced_lines = create_backward_slice(combined_graph, slice_ln)
+            all_slice_lines = forward_sliced_lines
+            all_slice_lines.extend(backward_sliced_lines)
+            all_slice_lines = sorted(list(set(all_slice_lines)))
+            key = ' '.join([str(i) for i in all_slice_lines])
+            if key not in _keys:
+                call_slices.append(backward_sliced_lines)
+                call_slices_bdir.append(all_slice_lines)
+                _keys.add(key)
+            if key not in all_keys:
+                all_slices.append(all_slice_lines)
+                all_keys.add(key)
+                
+        _keys = set()
+        for slice_ln in array_lines:
+            forward_sliced_lines = create_forward_slice(combined_graph, slice_ln)
+            backward_sliced_lines = create_backward_slice(combined_graph, slice_ln)
+            all_slice_lines = forward_sliced_lines
+            all_slice_lines.extend(backward_sliced_lines)
+            all_slice_lines = sorted(list(set(all_slice_lines)))
+            key = ' '.join([str(i) for i in all_slice_lines])
+            if key not in _keys:
+                array_slices.append(backward_sliced_lines)
+                array_slices_bdir.append(all_slice_lines)
+                _keys.add(key)
+            if key not in all_keys:
+                all_slices.append(all_slice_lines)
+                all_keys.add(key)
+        
+        _keys = set()
+        for slice_ln in arithmatic_lines:
+            forward_sliced_lines = create_forward_slice(combined_graph, slice_ln)
+            backward_sliced_lines = create_backward_slice(combined_graph, slice_ln)
+            all_slice_lines = forward_sliced_lines
+            all_slice_lines.extend(backward_sliced_lines)
+            all_slice_lines = sorted(list(set(all_slice_lines)))
+            key = ' '.join([str(i) for i in all_slice_lines])
+            if key not in _keys:
+                arith_slices.append(backward_sliced_lines)
+                arith_slices_bdir.append(all_slice_lines)
+                _keys.add(key)
+            if key not in all_keys:
+                all_slices.append(all_slice_lines)
+                all_keys.add(key)
+        
+        _keys = set()
+        for slice_ln in ptr_lines:
+            forward_sliced_lines = create_forward_slice(combined_graph, slice_ln)
+            backward_sliced_lines = create_backward_slice(combined_graph, slice_ln)
+            all_slice_lines = forward_sliced_lines
+            all_slice_lines.extend(backward_sliced_lines)
+            all_slice_lines = sorted(list(set(all_slice_lines)))
+            key = ' '.join([str(i) for i in all_slice_lines])
+            if key not in _keys:
+                ptr_slices.append(backward_sliced_lines)
+                ptr_slices_bdir.append(all_slice_lines)
+                _keys.add(key)
+            if key not in all_keys:
+                all_slices.append(all_slice_lines)
+                all_keys.add(key)
+                
+        t_code = tokenize(code_text)
+        if t_code is None:
+            continue
+        data_instance = {
+            'file_path': split_dir + file_name.strip(),
+            'code' : code_text,
+            'tokenized': t_code,
+            'call_slices_vd': call_slices,
+            'call_slices_sy': call_slices_bdir,
+            'array_slices_vd': array_slices,
+            'array_slices_sy': array_slices_bdir,
+            'arith_slices_vd': arith_slices,
+            'arith_slices_sy': arith_slices_bdir,
+            'ptr_slices_vd': ptr_slices,
+            'ptr_slices_sy': ptr_slices_bdir,
+            'label': int(label)
+        }
+        all_data.append(data_instance)
+        
+        if i % 1000 == 0:
+            print(i, len(call_slices), len(call_slices_bdir), 
+                len(array_slices), len(array_slices_bdir), 
+                len(arith_slices), len(arith_slices_bdir), sep='\t')
 
 
-print(len(all_data))
-output_file = open('../data/chrome_debian_full_data_with_slices.json', 'w')
-json.dump(all_data, output_file)
-output_file.close()
+    print(len(all_data))
+    output_file = open(args.output + args.project + '_full_data_with_slices.json', 'w')
+    json.dump(all_data, output_file)
+    output_file.close()
