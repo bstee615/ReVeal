@@ -31,4 +31,4 @@ python data_processing/split_data.py --input "$outpdir/data/full_experiment_real
 
 python Devign/main.py --model_type ggnn --dataset "$name" --input_dir "$outpdir/ggnn_input/$name/" --feature_size 169;
 
-python Devign/run_model.py --model "models/$name/GGNNSumModel-model.bin" --dataset "$outpdir/ggnn_input/$name/processed.bin" --output_dir "$outpdir/after_ggnn" --name "$name";
+python Devign/run_model.py --model "models/$name/GGNNSumModel-model.bin" --dataset "$outpdir/ggnn_input/$name/processed.bin" --output_dir "$outpdir/after_ggnn/" --name "$name";
