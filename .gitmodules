@@ -1,3 +1,6 @@
 [submodule "code-slicer/joern"]
 	path = code-slicer/joern
 	url = https://github.com/octopus-platform/joern.git
+[submodule "Devign"]
+	path = Devign
+	url = https://github.com/EthanLubbock/Devign
