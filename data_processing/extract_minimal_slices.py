@@ -29,7 +29,6 @@ def read_csv(csv_file_path):
             data.append(instance)
         return data
 
-
 def read_code_file(file_path):
     code_lines = {}
     with open(file_path) as fp:
@@ -40,12 +39,6 @@ def read_code_file(file_path):
                 line = line[:line.index('//')]
             code_lines[ln + 1] = line
         return code_lines
-
-
-
-
-    
-
 
 def read_file(path):
     with open(path) as f:
