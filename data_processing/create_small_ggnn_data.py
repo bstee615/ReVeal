@@ -18,7 +18,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-
 type_map = {
     'AndExpression': 1, 'Sizeof': 2, 'Identifier': 3, 'ForInit': 4, 'ReturnStatement': 5, 'SizeofOperand': 6,
     'InclusiveOrExpression': 7, 'PtrMemberAccess': 8, 'AssignmentExpression': 9, 'ParameterList': 10,
@@ -78,7 +77,7 @@ edgeType_control_data = {
 # edgeType = {'IS_AST_PARENT': 1}
 
 
-
+#This is called by each of the graph building methods in turn
 def inputGeneration(nodeCSV, edgeCSV, target, wv, edge_type_map, cfg_only=False):
     gInput = dict()
     gInput["targets"] = list()
@@ -185,6 +184,7 @@ def main():
     v, nv, vd_present, syse_present, cg_present, dg_present, cdg_present = 0, 0, 0, 0, 0, 0, 0
     data_shard = 1
 
+    # TQDM for loop for data elements
     for didx, entry in enumerate(tqdm(data)):
 
         file_name = entry['file_path'].split('/')[-1]
@@ -215,7 +215,8 @@ def main():
         graph_input_cd = inputGeneration(
             nodes_path, edges_path, label, model, edgeType_control_data, True)
 
-        draper_code = entry['tokenized']
+        #draper_code = entry['tokenized']
+        draper_code = {}
 
         if graph_input_full is None:
             continue
