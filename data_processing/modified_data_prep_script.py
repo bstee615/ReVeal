@@ -3,20 +3,21 @@ import os
 import sys
 import argparse
 from tqdm import tqdm
-import clang.cindex
-import clang.enumerations
+#import clang.cindex
+#import clang.enumerations
 import csv
 import numpy as np
 import re 
-from graphviz import Digraph
-import nltk
-from gensim.models import Word2Vec
-try:
-    # set the config
-    clang.cindex.Config.set_library_path("/usr/lib/x86_64-linux-gnu")
-    clang.cindex.Config.set_library_file('/usr/lib/x86_64-linux-gnu/libclang-6.0.so.1')
-except:
-    pass   
+#from graphviz import Digraph
+#import nltk
+#from gensim.models import Word2Vec
+
+#try:
+#    # set the config
+#    clang.cindex.Config.set_library_path("/usr/lib/x86_64-linux-gnu")
+#    clang.cindex.Config.set_library_file('/usr/lib/x86_64-linux-gnu/libclang-6.0.so.1')
+#except:
+#    pass   
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--project', help='name of project for differentiating files', default='chrome_debian')
