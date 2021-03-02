@@ -37,6 +37,7 @@ type_map = {
 }
 
 type_one_hot = np.eye(len(type_map))
+
 # We currently consider 12 types of edges mentioned in ICST paper
 edgeType_full = {
     'IS_AST_PARENT': 1,
