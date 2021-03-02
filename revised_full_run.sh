@@ -9,11 +9,13 @@ do
         o) outpdir=${OPTARG};;
         n) name=${OPTARG};;
     esac
+
 done
 
+# LOCK FOR TESTING
 name=chrome_debian
 outpdir=ReducedTest
-inpdir=~/Keid/ReVeal-master/data/chrome_debian
+
 rawdir=$inpdir/raw_codeR/
 parsedir=$inpdir/parsedR/
 
@@ -25,19 +27,12 @@ mkdir -p "$outpdir/after_ggnn/$name";
 
 #TODO: include Nick's slicer_all.sh to prep parsed directories for all c functions
 
-
-#python data_processing/create_ggnn_input.py --project "$name" --input "$inpdir" --output "$outpdir/data/";
 python data_processing/create_ggnn_input.py --project "$name" --input "$rawdir" --output "$outpdir/data/"
 
-
-#python data_processing/extract_slices.py --project "$name" --input_raw "$rawdir" --input_parse "$parsedir" --text_in "$outpdir/data/" --output "$outpdir/data/";
 python data_processing/extract_minimal_slices.py --project "$name" --input_raw "$rawdir"  --text_in "$outpdir/data/" --output "$outpdir/data/";
 
-
-#python data_processing/create_ggnn_data.py --input "$outpdir/data/" --project "$name" --csv "$parsedir" --src "$rawdir" --wv "$inpdir/raw_code_deb_chro.100" --output "$outpdir/data/full_experiment_real_data/$name/$name.json"
 python data_processing/create_small_ggnn_data.py --input "$outpdir/data/" --project "$name" --csv "$parsedir" --src "$rawdir" --wv "$inpdir/raw_code_deb_chro.100" --output "$outpdir/data/full_experiment_real_data/$name/$name.json"
 
-#data_processing/full_data_prep_script.py --project "$name" --input "$inpdir" --base "$outpdir/data/full_experiment_real_data/" --output "$outpdir/data/full_experiment_real_data_processed";
 python data_processing/modified_data_prep_script.py --project "$name" --base "$outpdir/data/full_experiment_real_data/" --output "$outpdir/data/full_experiment_real_data_processed"
 
 python data_processing/split_data.py --input "$outpdir/data/full_experiment_real_data_processed/$name-full_graph.json" --output "$outpdir/ggnn_input" --percent 50 --name "$name";
@@ -46,9 +41,6 @@ python Devign/main.py --model_type ggnn --dataset "$name" --input_dir "$outpdir/
 
 python Devign/run_model.py --model "models/$name/GGNNSumModel-model.bin" --dataset "$outpdir/ggnn_input/$name/processed.bin" --output_dir "$outpdir/after_ggnn/" --name "$name";
 
-
-#cd Vuld_SySe/representation_learning
-#python api_test.py --dataset chrome_debian  --features ggnn;
 
 python Vuld_SySe/representation_learning/api_test.py --dataset chrome_debian/balanced  --features ggnn
 
