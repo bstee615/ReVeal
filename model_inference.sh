@@ -32,4 +32,4 @@ python data_processing/split_data.py --input "$outpdir/data/full_experiment_real
 
 python Devign/initialise_data.py --dataset "$name" --input_dir "$outpdir/ggnn_input/$name/"
 
-python Devign/run_model.py --model "models/$name/GGNNSumModel-model.bin" --dataset "$outpdir/ggnn_input/$name/processed.bin" --output_dir "$outpdir/after_ggnn/" --name "$name";
+python Devign/run_model.py --model "$model" --dataset "$outpdir/ggnn_input/$name/processed.bin" --output_dir "$outpdir/after_ggnn/" --name "$name";
