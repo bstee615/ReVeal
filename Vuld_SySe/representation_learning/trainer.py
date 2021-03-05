@@ -11,7 +11,7 @@ from tsne import plot_embedding
 from models import MetricLearningModel
 
 
-def train(model, dataset, optimizer, num_epochs, max_patience=5,
+def train(model, dataset, optimizer, save_path, num_epochs, max_patience=5,
           valid_every=1, cuda_device=-1, output_buffer=sys.stderr):
     if output_buffer is not None:
         print('Start Training', file=output_buffer)
@@ -86,6 +86,9 @@ def train(model, dataset, optimizer, num_epochs, max_patience=5,
             model.load_state_dict(best_model)
             if cuda_device != -1:
                 model.cuda(device=cuda_device)
+    _save_file = open(save_path + '-model.bin', 'wb')
+    torch.save(model.state_dict(), _save_file)
+    _save_file.close()
     if dataset.initialize_test_batches() != 0:
         tacc, tpr, trc, tf1 = evaluate(
             model, dataset.get_next_test_batch, dataset.initialize_test_batches(), cuda_device)
@@ -97,7 +100,6 @@ def train(model, dataset, optimizer, num_epochs, max_patience=5,
             print('%f\t%f\t%f\t%f' % (tacc, tpr, trc, tf1))
             print('*' * 100, file=output_buffer)
             print('*' * 100, file=output_buffer)
-
 
 def predict(model, iterator_function, _batch_count, cuda_device):
     probs = predict_proba(model, iterator_function, _batch_count, cuda_device)

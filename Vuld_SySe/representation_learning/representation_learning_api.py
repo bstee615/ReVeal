@@ -37,7 +37,7 @@ class RepresentationLearningModel(BaseEstimator):
     def fit(self, train_x, train_y):
         self.train(train_x, train_y)
 
-    def train(self, train_x, train_y):
+    def train(self, train_x, train_y, save_path):
         input_dim = train_x.shape[1]
         self.model = MetricLearningModel(
             input_dim=input_dim, hidden_dim=self.hidden_dim, aplha=self.alpha, lambda1=self.lambda1,
@@ -55,7 +55,7 @@ class RepresentationLearningModel(BaseEstimator):
         self.dataset.initialize_dataset(balance=self.balance, output_buffer=self.output_buffer)
         train(
             model=self.model, dataset=self.dataset, optimizer=self.optimizer,
-            num_epochs=self.num_epoch, max_patience=self.max_patience,
+            save_path=save_path, num_epochs=self.num_epoch, max_patience=self.max_patience,
             cuda_device=0 if self.cuda else -1,
             output_buffer=self.output_buffer
         )
