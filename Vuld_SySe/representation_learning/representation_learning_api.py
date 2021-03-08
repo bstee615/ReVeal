@@ -84,7 +84,7 @@ class RepresentationLearningModel(BaseEstimator):
                     model=self.model, iterator_function=self.dataset.get_next_test_batch,
                     _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1,
                     inf=True)
-            )
+
         else:
             for _x in text_x:
                 self.dataset.add_data_entry(_x.tolist(), 0, part='test')
