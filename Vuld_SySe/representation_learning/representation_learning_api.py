@@ -73,16 +73,25 @@ class RepresentationLearningModel(BaseEstimator):
             _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1,
         )
 
-    def predict_proba(self, text_x):
+    def predict_proba(self, text_x, file_names=None):
         if not hasattr(self, 'dataset'):
             raise ValueError('Cannnot call predict or evaluate in untrained model. Train First!')
         self.dataset.clear_test_set()
-        for _x in text_x:
-            self.dataset.add_data_entry(_x.tolist(), 0, part='test')
-        return predict_proba(
-            model=self.model, iterator_function=self.dataset.get_next_test_batch,
-            _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1
-        )
+        if file_names:
+            for _x, _fn in zip(text_x, file_names):
+                self.dataset.add_data_entry(_x.tolist(), 0, part='test', _fn)
+                return predict_proba(
+                    model=self.model, iterator_function=self.dataset.get_next_test_batch,
+                    _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1,
+                    inf=True)
+            )
+        else:
+            for _x in text_x:
+                self.dataset.add_data_entry(_x.tolist(), 0, part='test')
+            return predict_proba(
+                model=self.model, iterator_function=self.dataset.get_next_test_batch,
+                _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1
+            )
 
     def evaluate(self, text_x, test_y):
         if not hasattr(self, 'dataset'):

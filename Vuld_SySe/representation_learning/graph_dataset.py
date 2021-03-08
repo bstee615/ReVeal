@@ -26,9 +26,13 @@ class DataEntry:
     def is_positive(self):
         return self.label == 1
 
+class DataEntryInf(DataEntry):
+    def __init__(self, dataset, feature_repr, label, file_name, meta_data=None):
+        super().__init__(dataset, feature_repr, label, meta_data=meta_data)
+        self.file_name = file_name
 
 class DataSet:
-    def __init__(self, batch_size, hdim):
+    def __init__(self, batch_size, hdim, inf=False):
         self.train_entries = []
         self.valid_entries = []
         self.test_entries = []
@@ -37,6 +41,7 @@ class DataSet:
         self.test_batch_indices = []
         self.batch_size = batch_size
         self.hdim = hdim
+        self.inf = inf
         self.positive_indices_in_train = []
         self.negative_indices_in_train = []
 
@@ -88,9 +93,12 @@ class DataSet:
             print('Number of Test  Entries %d #Batches %d' % \
                   (len(self.test_entries), len(self.test_batch_indices)), file=output_buffer)
 
-    def add_data_entry(self, feature, label, part='train'):
+    def add_data_entry(self, feature, label, part='train', file_name=None):
         assert part in ['train', 'valid', 'test']
-        entry = DataEntry(self, feature, label)
+        if self.inf:
+            entry = DataEntryInf(self, feature, label, file_name)
+        else:
+            entry = DataEntry(self, feature, label)
         if part == 'train':
             self.train_entries.append(entry)
         elif part == 'valid':
@@ -166,13 +174,20 @@ class DataSet:
         batch_size = len(indices)
         features = np.zeros(shape=(batch_size, self.hdim))
         targets = np.zeros(shape=(batch_size))
+        if self.inf:
+            file_names = np.zeros(shape=(batch_size))
         for tidx, idx in enumerate(indices):
             entry = _entries[idx]
             assert isinstance(entry, DataEntry)
             targets[tidx] = entry.label
             for feature_idx in range(self.hdim):
                 features[tidx, feature_idx] = entry.features[feature_idx]
-        return torch.FloatTensor(features), torch.LongTensor(targets)
+            if self.inf:
+                file_names[tidx] = entry.file_name
+        if self.inf:
+            return torch.FloatTensor(features), torch.LongTensor(targets), file_names
+        else:
+            return torch.FloatTensor(features), torch.LongTensor(targets)
         pass
 
     def find_same_class_data(self, ignore_indices):

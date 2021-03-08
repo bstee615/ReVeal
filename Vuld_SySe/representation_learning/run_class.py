@@ -33,6 +33,7 @@ for part in parts:
     del data
 X = numpy.array(features)
 Y = numpy.array(targets)
+Z = numpy.array(file_names)
 print('Dataset', X.shape, Y.shape, numpy.sum(Y), sep='\t', file=sys.stderr)
 print('=' * 100, file=sys.stderr, flush=True)
 
@@ -43,10 +44,12 @@ _model = _model.to('cuda:0')
 
 classifier = RepresentationLearningModel(batch_size=128, print=True, max_patience=5)
 classifier.model = _model
-classifier.dataset = DataSet(classifier.batch_size, X.shape[1])
+classifier.dataset = DataSet(classifier.batch_size, X.shape[1], inf=True)
 print('Data & models Loaded')
 print('='*83)
 
-output = classifier.predict_proba(X)
+output, file_names_out = classifier.predict_proba(X, Z)
 output = [e.cpu().tolist() for e in output]
 print('DONE')
+
+# need to concat output and file_names then save to file
