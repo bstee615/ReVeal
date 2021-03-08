@@ -110,13 +110,15 @@ def predict_proba(model, iterator_function, _batch_count, cuda_device, inf=False
     model.eval()
     with torch.no_grad():
         predictions = []
+        file_names = []
         if inf:
             for _ in tqdm(range(_batch_count)):
-                features, targets, file_names = iterator_function()
+                features, targets, _file_names = iterator_function()
                 if cuda_device != -1:
                     features = features.cuda(device=cuda_device)
                 probs, _, _ = model(example_batch=features)
                 predictions.extend(probs)
+                file_names.extend(_file_names)
         else:
             for _ in tqdm(range(_batch_count)):
                 features, targets = iterator_function()

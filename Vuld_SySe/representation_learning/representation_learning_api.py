@@ -73,17 +73,17 @@ class RepresentationLearningModel(BaseEstimator):
             _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1,
         )
 
-    def predict_proba(self, text_x, file_names=None):
+    def predict_proba(self, text_x, file_names=None, inf=False):
         if not hasattr(self, 'dataset'):
             raise ValueError('Cannnot call predict or evaluate in untrained model. Train First!')
         self.dataset.clear_test_set()
-        if file_names:
+        if inf:
             for _x, _fn in zip(text_x, file_names):
-                self.dataset.add_data_entry(_x.tolist(), 0, part='test', _fn)
-                return predict_proba(
-                    model=self.model, iterator_function=self.dataset.get_next_test_batch,
-                    _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1,
-                    inf=True)
+                self.dataset.add_data_entry(_x.tolist(), 0, part='test', file_name=_fn)
+            return predict_proba(
+                model=self.model, iterator_function=self.dataset.get_next_test_batch,
+                _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1,
+                inf=True)
 
         else:
             for _x in text_x:

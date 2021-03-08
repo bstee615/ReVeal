@@ -48,8 +48,11 @@ classifier.dataset = DataSet(classifier.batch_size, X.shape[1], inf=True)
 print('Data & models Loaded')
 print('='*83)
 
-output, file_names_out = classifier.predict_proba(X, Z)
+output, file_names_out = classifier.predict_proba(X, file_names=Z, inf=True)
 output = [e.cpu().tolist() for e in output]
+out = [{'result':o, 'file_name':fn} for o, fn in zip(output, file_names_out)]
 print('DONE')
 
-# need to concat output and file_names then save to file
+with open(args.output_dir + args.name + '/finalResults.json', 'w') as of:
+    json.dump(out, of, indent=2)
+    of.close()

@@ -31,6 +31,9 @@ class DataEntryInf(DataEntry):
         super().__init__(dataset, feature_repr, label, meta_data=meta_data)
         self.file_name = file_name
 
+    def __repr__(self):
+        return str(self.features) + '\t' + str(self.label) + '\t' + str(self.file_name)
+
 class DataSet:
     def __init__(self, batch_size, hdim, inf=False):
         self.train_entries = []
@@ -175,7 +178,7 @@ class DataSet:
         features = np.zeros(shape=(batch_size, self.hdim))
         targets = np.zeros(shape=(batch_size))
         if self.inf:
-            file_names = np.zeros(shape=(batch_size))
+            file_names = []
         for tidx, idx in enumerate(indices):
             entry = _entries[idx]
             assert isinstance(entry, DataEntry)
@@ -183,7 +186,7 @@ class DataSet:
             for feature_idx in range(self.hdim):
                 features[tidx, feature_idx] = entry.features[feature_idx]
             if self.inf:
-                file_names[tidx] = entry.file_name
+                file_names.append(entry.file_name)
         if self.inf:
             return torch.FloatTensor(features), torch.LongTensor(targets), file_names
         else:
