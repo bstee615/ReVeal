@@ -23,14 +23,17 @@ targets = []
 file_names = []
 parts = ['train', 'valid', 'test']
 for part in parts:
-    json_data_file = open(args.dataset + part + '_GGNNinput_graph.json')
-    data = json.load(json_data_file)
-    json_data_file.close()
-    for d in data:
-        features.append(d['graph_feature'])
-        targets.append(d['target'])
-        file_names.append(d['file_name'])
-    del data
+    try:
+        json_data_file = open(args.dataset + part + '_GGNNinput_graph.json')
+        data = json.load(json_data_file)
+        json_data_file.close()
+        for d in data:
+            features.append(d['graph_feature'])
+            targets.append(d['target'])
+            file_names.append(d['file_name'])
+        del data
+    except:
+        continue
 X = numpy.array(features)
 Y = numpy.array(targets)
 Z = numpy.array(file_names)
@@ -53,6 +56,6 @@ output = [e.cpu().tolist() for e in output]
 out = [{'result':o, 'file_name':fn} for o, fn in zip(output, file_names_out)]
 print('DONE')
 
-with open(args.output_dir + args.name + '/finalResults.json', 'w') as of:
+with open(args.output_dir + 'finalResults.json', 'w') as of:
     json.dump(out, of, indent=2)
     of.close()
