@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int main(int argc, char **argv)
 {
@@ -8,7 +9,12 @@ int main(int argc, char **argv)
         printf("Hello, %s!\n", x);
     }
     else {
-        printf("Salutations, %s!\n", x);
+        printf("Salutations!\n");
+    }
+    int i = 0;
+    while (i < strlen(x)) {
+        i ++;
+        printf("Length: %d\n", strlen(x));
     }
     printf("Goodbye, %s!\n", x);
 }
