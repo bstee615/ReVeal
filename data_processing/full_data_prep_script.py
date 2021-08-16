@@ -573,7 +573,7 @@ def reformat_code_line_graph(code_lines, adjacency_lists, lanel, wv_model_origin
     }
     return data_point
 
-wv_model_li = Word2Vec.load('~/keid/ReVeal/data/Word2Vec/li_et_al_wv')
+wv_model_li = Word2Vec.load(args.input + '/../Word2Vec/li_et_al_wv')
                                     
 ggnn_data = []
 

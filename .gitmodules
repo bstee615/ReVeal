@@ -3,4 +3,4 @@
 	url = https://github.com/octopus-platform/joern.git
 [submodule "Devign"]
 	path = Devign
-	url = https://github.com/EthanLubbock/Devign
+	url = https://github.com/bstee615/Devign

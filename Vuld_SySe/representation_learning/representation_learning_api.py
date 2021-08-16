@@ -26,6 +26,7 @@ class RepresentationLearningModel(BaseEstimator):
         self.batch_size = batch_size
         self.balance = balance
         self.cuda = torch.cuda.is_available()
+        assert self.cuda
         self.print = print
         self.num_layers = num_layers
         if print:
@@ -37,7 +38,7 @@ class RepresentationLearningModel(BaseEstimator):
     def fit(self, train_x, train_y):
         self.train(train_x, train_y)
 
-    def train(self, train_x, train_y, save_path):
+    def train(self, train_x, train_y, valid_x, valid_y, test_x, test_y, save_path):
         input_dim = train_x.shape[1]
         self.model = MetricLearningModel(
             input_dim=input_dim, hidden_dim=self.hidden_dim, aplha=self.alpha, lambda1=self.lambda1,
@@ -47,11 +48,21 @@ class RepresentationLearningModel(BaseEstimator):
         if self.cuda:
             self.model.cuda(device=0)
         self.dataset = DataSet(self.batch_size, train_x.shape[1])
+        
+        # This code is fishy because it takes 10% of train data, which is already only 80% of the dataset,
+        # meaning the train/valid/test split is actually 72/8/20.
+        #for _x, _y in zip(train_x, train_y):
+        #    if numpy.random.uniform() <= 0.1:
+        #        self.dataset.add_data_entry(_x.tolist(), _y.item(), 'valid')
+        #    else:
+        #        self.dataset.add_data_entry(_x.tolist(), _y.item(), 'train')
+
         for _x, _y in zip(train_x, train_y):
-            if numpy.random.uniform() <= 0.1:
-                self.dataset.add_data_entry(_x.tolist(), _y.item(), 'valid')
-            else:
-                self.dataset.add_data_entry(_x.tolist(), _y.item(), 'train')
+            self.dataset.add_data_entry(_x.tolist(), _y.item(), 'train')
+        for _x, _y in zip(valid_x, valid_y):
+            self.dataset.add_data_entry(_x.tolist(), _y.item(), 'valid')
+        for _x, _y in zip(test_x, test_y):
+            self.dataset.add_data_entry(_x.tolist(), _y.item(), 'test')
         self.dataset.initialize_dataset(balance=self.balance, output_buffer=self.output_buffer)
         train(
             model=self.model, dataset=self.dataset, optimizer=self.optimizer,

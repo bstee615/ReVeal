@@ -1,4 +1,5 @@
 import copy
+import os
 
 import numpy as np
 import sys
@@ -60,7 +61,7 @@ def train(model, dataset, optimizer, save_path, num_epochs, max_patience=5,
                     best_model = copy.deepcopy(model.state_dict())
                 else:
                     patience_counter += 1
-                if dataset.initialize_test_batches() != 0:
+                if False and dataset.initialize_test_batches() != 0:
                     tacc, tpr, trc, tf1 = evaluate(
                         model, dataset.get_next_test_batch, dataset.initialize_test_batches(), cuda_device,
                         output_buffer=output_buffer
@@ -86,10 +87,13 @@ def train(model, dataset, optimizer, save_path, num_epochs, max_patience=5,
             model.load_state_dict(best_model)
             if cuda_device != -1:
                 model.cuda(device=cuda_device)
-    _save_file = open(save_path + '-model.bin', 'wb')
+    if os.path.exists(save_path):
+        _save_file = open(save_path + '/' + model.__class__.__name__ + '-model.bin', 'wb')
+    else:
+        _save_file = open('temp-model.bin', 'wb')
     torch.save(model.state_dict(), _save_file)
     _save_file.close()
-    if dataset.initialize_test_batches() != 0:
+    if False and dataset.initialize_test_batches() != 0:
         tacc, tpr, trc, tf1 = evaluate(
             model, dataset.get_next_test_batch, dataset.initialize_test_batches(), cuda_device)
         if output_buffer is not None:

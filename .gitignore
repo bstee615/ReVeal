@@ -31,3 +31,9 @@ Vuld_SySe/representation_learning/tsnes/
 Vuld_SySe/representation_learning_inproved/
 .idea/
 Attn_Vul_Det/
+*.out
+debug.txt*
+*.tar.gz
+out
+results_*
+.ipynb_checkpoints
