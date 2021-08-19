@@ -57,7 +57,7 @@ if __name__ == '__main__':
     parser.add_argument('--baseline_balance', action='store_true')
     parser.add_argument('--baseline_model', default='svm')
     parser.add_argument('--num_layers', default=1, type=int)
-    parser.add_argument('--keep-split', action='store_true')
+    parser.add_argument('--keep-split', action='store_true', help='Keep the original train/valid/test split from the dataset')
     numpy.random.rand(1000)
     torch.manual_seed(1000)
     args = parser.parse_args()
