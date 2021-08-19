@@ -26,6 +26,7 @@ class RepresentationLearningModel(BaseEstimator):
         self.batch_size = batch_size
         self.balance = balance
         self.cuda = torch.cuda.is_available()
+        assert self.cuda, 'Please enable CUDA'
         self.print = print
         self.num_layers = num_layers
         if print:
