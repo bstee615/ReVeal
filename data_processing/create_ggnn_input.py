@@ -7,7 +7,7 @@ def raw_code2dict(file_path):
     file_name = file_path.split('/')[-1]
     output = {
         'file_name':file_name,
-        'label':int(file_name[-3]),
+        'label':int(file_name[-3]) if '_refactored' not in file_name else int(file_name[-(3+len('_refactored'))]),
         'code':open(file_path, 'r').read()
         }
     return output

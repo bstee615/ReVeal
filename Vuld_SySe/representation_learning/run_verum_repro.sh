@@ -3,4 +3,4 @@
 #  python api_test.py --dataset chrome_debian/imbalanced --features ggnn --num_layers $l;
 #done
 
-python api_test.py --dataset ../../out/data/after_ggnn/chrome_debian/ --features ggnn --split_old;
+python api_test.py --dataset chrome_debian/repro --features ggnn --num_repeats 10;

@@ -13,8 +13,8 @@ from graphviz import Digraph
 warnings.filterwarnings('ignore')
 # set the config
 try:
-    clang.cindex.Config.set_library_path("/usr/lib/x86_64-linux-gnu")
-    clang.cindex.Config.set_library_file('/usr/lib/x86_64-linux-gnu/libclang-10.so.1')
+    clang.cindex.Config.set_library_path("/work/LAS/weile-lab/benjis/weile-lab/thesis/ReVeal/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04/lib")
+    clang.cindex.Config.set_library_file('/work/LAS/weile-lab/benjis/weile-lab/thesis/ReVeal/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04/lib/libclang.so.6.0')
 except:
     pass
 
@@ -392,7 +392,7 @@ if __name__ == '__main__':
     all_data = []
         
     for i, file_name  in enumerate(files):
-        label = file_name.strip()[:-2].split('_')[-1]
+        label = file_name.strip()[:-2].split('_')[-1 if '_refactored' not in file_name else -2]
         code_text = read_file(split_dir + file_name.strip())
         
         nodes_file_path = parsed + file_name.strip() + '/nodes.csv'

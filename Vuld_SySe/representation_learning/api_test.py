@@ -82,6 +82,10 @@ if __name__ == '__main__':
                 ds = '../../data/after_ggnn/chrome_debian/balance/v3/'
             elif dataset == 'chrome_debian/imbalanced':
                 ds = '../../data/after_ggnn/chrome_debian/imbalance/v6/'
+            elif dataset == 'chrome_debian/repro':
+                ds = '../../out/data/after_ggnn/chrome_debian/'
+            elif dataset == 'chrome_debian/partial_data':
+                ds = '../../data-old/after_ggnn_partial/chrome_debian/'
             elif dataset == 'devign':
                 ds = '../../data/after_ggnn/devign/v6/'
             else:
@@ -103,6 +107,8 @@ if __name__ == '__main__':
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     output_file_name = output_dir + '/' + dataset.replace('/', '_') + '-' + feature_name + '-'
+    if args.split_old:
+        output_file_name += 'old_split-'
     if args.lambda1 == 0:
         assert args.lambda2 == 0
         output_file_name += 'cross-entropy-only-layers-'+ str(args.num_layers) + '.tsv'
@@ -124,7 +130,11 @@ if __name__ == '__main__':
                 lambda1=args.lambda1, lambda2=args.lambda2, batch_size=128, print=True, max_patience=5, balance=True,
                 num_layers=args.num_layers
             )
-        model.train(train_X, train_Y, valid_X, valid_Y, test_X, test_Y, './models/')
+        save_path = './models/'
+        save_path += dataset.replace('/', '_') + '-' + feature_name + '-'
+        if args.split_old:
+            save_path += 'old_split-'
+        model.train(train_X, train_Y, valid_X, valid_Y, test_X, test_Y, save_path)
         results = model.evaluate(test_X, test_Y)
         print('Test:', results['accuracy'], results['precision'], results['recall'], results['f1'], flush=True, file=output_file)
     output_file.close()
