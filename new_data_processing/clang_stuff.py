@@ -6,15 +6,13 @@ import clang.enumerations
 
 logger = logging.getLogger(__name__)
 
-
-def setup():
-    try:
-        clang.cindex.Config.set_library_path(
-            "/work/LAS/weile-lab/benjis/weile-lab/thesis/ReVeal/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04/lib")
-        clang.cindex.Config.set_library_file(
-            '/work/LAS/weile-lab/benjis/weile-lab/thesis/ReVeal/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04/lib/libclang.so.6.0')
-    except Exception:
-        logger.error(f'could not set up clang!')
+try:
+    clang.cindex.Config.set_library_path(
+        "/work/LAS/weile-lab/benjis/weile-lab/thesis/ReVeal/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04/lib")
+    clang.cindex.Config.set_library_file(
+        '/work/LAS/weile-lab/benjis/weile-lab/thesis/ReVeal/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04/lib/libclang.so.6.0')
+except Exception:
+    logger.error(f'could not set up clang!')
 
 
 class Tokenizer:

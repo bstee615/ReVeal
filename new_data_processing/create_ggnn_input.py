@@ -1,7 +1,7 @@
 import json
 import logging
 
-from tqdm import tqdm
+import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +22,16 @@ def create_ggnn_input(code_dir, output_dir, project, store=False):
     """
 
     raw_code = code_dir / 'raw_code'
-    cfiles = list(raw_code.glob('*'))
+    cfiles = raw_code.glob('*')
+    total = len(list(raw_code.glob('*')))
     logger.info(f'{len(cfiles)} items')
 
     output_data = []
-    for cfile in tqdm():
+    for i, cfile in tqdm.tqdm(enumerate(cfiles)):
         fp = raw_code / cfile
-        output_data.append(raw_code2dict(fp))
+        output = raw_code2dict(fp)
+        output["idx"] = i
+        output_data.append(output)
 
     output_file = output_dir / (project + '_cfg_full_text_files.json')
     if store:
@@ -36,4 +39,4 @@ def create_ggnn_input(code_dir, output_dir, project, store=False):
             json.dump(output_data, of)
             of.close()
         logger.info(f'saved output File to {output_file}')
-    return output_data
+    return total, output_data
