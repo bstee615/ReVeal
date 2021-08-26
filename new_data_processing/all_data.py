@@ -1,7 +1,13 @@
 import argparse
+import logging
 from pathlib import Path
 
 from new_data_processing.create_ggnn_input import create_ggnn_input
+from new_data_processing.extract_slices import extract_slices
+
+logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+                    datefmt='%Y-%m-%d:%H:%M:%S',
+                    level=logging.INFO)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -12,7 +18,12 @@ if __name__ == '__main__':
     parser.add_argument('--store', help='store intermediate files?', action='store_true')
     args = parser.parse_args()
 
-    args.input = Path(args.input)
-    args.output = Path(args.output)
+    input_dir = Path(args.input)
+    output_dir = Path(args.output)
+    project = args.project
+    code_dir = input_dir / project / 'raw_code'
+    parsed_dir = input_dir / project / 'parsed'
 
-    create_ggnn_input(args)
+    full_text_files = create_ggnn_input(input_dir, output_dir, project)
+    full_text_files_with_slices = extract_slices(full_text_files, input_dir, output_dir, project)
+    ggnn_data = create_ggnn_data(args, full_text_files)

@@ -1,7 +1,9 @@
-import argparse
 import json
+import logging
 
 from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
 
 
 def raw_code2dict(file_path):
@@ -14,35 +16,24 @@ def raw_code2dict(file_path):
     return output
 
 
-def create_ggnn_input(args):
+def create_ggnn_input(code_dir, output_dir, project, store=False):
     """
     Collate JSON file of all
     """
 
-    raw_code = args.input / 'raw_code'
+    raw_code = code_dir / 'raw_code'
+    cfiles = list(raw_code.glob('*'))
+    logger.info(f'{len(cfiles)} items')
+
     output_data = []
-    for cfile in tqdm(raw_code.glob('*')):
+    for cfile in tqdm():
         fp = raw_code / cfile
         output_data.append(raw_code2dict(fp))
 
-    output_file = args.output / (args.project + '_cfg_full_text_files.json')
-    if args.store:
+    output_file = output_dir / (project + '_cfg_full_text_files.json')
+    if store:
         with open(output_file, 'w') as of:
             json.dump(output_data, of)
             of.close()
-        print(f'Saved Output File to {output_file}')
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--project', help='name of project for differentiating files', default='chrome_debian')
-    parser.add_argument('--input', help='directory where raw code and parsed are stored',
-                        default='../data/chrome_debian')
-    parser.add_argument('--output', help='output directory for resulting json file', default='../data/ggnn_input/')
-    args = parser.parse_args()
-
-    create_ggnn_input(args)
-
-
-if __name__ == '__main__':
-    main()
+        logger.info(f'saved output File to {output_file}')
+    return output_data
