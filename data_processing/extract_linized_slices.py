@@ -2,7 +2,7 @@ import re
 
 import nltk
 
-from new_data_processing.constants import keywords, puncs, l_funcs
+from data_processing.constants import keywords, puncs, l_funcs
 
 
 def symbolic_tokenize(code):

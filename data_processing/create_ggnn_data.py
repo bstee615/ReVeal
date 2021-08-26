@@ -78,7 +78,7 @@ def get_ggnn_graph(nodeCSV, edgeCSV, target, wv, portion):
     gInput["graph"] = list()
     gInput["node_features"] = list()
     gInput["targets"].append([target])
-    with open(nodeCSV, 'r') as nc:
+    with open(nodeCSV, 'r', encoding='utf-8', errors='ignore') as nc:
         nodes = csv.DictReader(nc, delimiter='\t')
         nodeMap = dict()
         allNodes = {}

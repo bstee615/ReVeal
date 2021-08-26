@@ -1,4 +1,4 @@
-from new_data_processing.constants import l_funcs
+from data_processing.constants import l_funcs
 
 
 def create_forward_slice(adjacency_list, line_no):
