@@ -600,7 +600,7 @@ def extract_line_graph_data(
         try:
             for data in tqdm(shard_data):
                 file_name = data['file_name']    
-                label = int(file_name.strip()[:-2].split('_')[-1])
+                label = int(file_name.strip()[:-2].split('_')[-1] if '_refactored' not in file_name else file_name.strip()[:-2].split('_')[-2])
                 code_text = read_code_file(split_dir + file_name.strip())
                 nodes_file_path = parsed + file_name.strip() + '/nodes.csv'
                 edges_file_path = parsed + file_name.strip() + '/edges.csv'
@@ -625,4 +625,4 @@ def extract_line_graph_data(
     print(len(graphs))
 #     return graphs
 
-graph_data = extract_line_graph_data(args.project)
+#graph_data = extract_line_graph_data(args.project)

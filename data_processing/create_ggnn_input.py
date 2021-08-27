@@ -1,35 +1,26 @@
-import os
-import json
-import argparse
-from tqdm import tqdm
+import itertools
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def raw_code2dict(file_path):
-    file_name = file_path.split('/')[-1]
+    file_name = file_path.name
+    with open(file_path, encoding='utf-8', errors='ignore') as f:
+        code = f.read()
     output = {
-        'file_name':file_name,
-        'label':int(file_name[-3]),
-        'code':open(file_path, 'r').read()
-        }
+        'file_name': file_name,
+        'label': int(file_name[-3]),
+        'code': code
+    }
     return output
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--project', help='name of project for differentiating files', default='chrome_debian')
-    parser.add_argument('--input', help='directory where raw code and parsed are stored', default='../data/chrome_debian')
-    parser.add_argument('--output', help='output directory for resulting json file', default='../data/ggnn_input/')
-    args = parser.parse_args()
 
-    code_file_path = args.input + '/raw_code/'
-
-    output_data = []
-    for cfile in tqdm(os.listdir(code_file_path)):
-        fp = code_file_path + cfile
-        output_data.append(raw_code2dict(fp))
-    
-    output_file = args.output + args.project + '_cfg_full_text_files.json'
-
-    with open(output_file, 'w') as of:
-        json.dump(output_data, of)
-        of.close()
-
-    print(f'Saved Output File to {output_file}')
+def get_input(project_dir, start=0):
+    raw_code = project_dir / 'raw_code'
+    cfiles = raw_code.glob('*')
+    cfiles = itertools.islice(cfiles, start, None)
+    for i, cfile in enumerate(cfiles):
+        output = raw_code2dict(cfile)
+        output["idx"] = i
+        yield output
