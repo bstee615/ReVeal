@@ -1,3 +1,4 @@
+import itertools
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,9 +16,10 @@ def raw_code2dict(file_path):
     return output
 
 
-def get_input(project_dir):
+def get_input(project_dir, start=0):
     raw_code = project_dir / 'raw_code'
     cfiles = raw_code.glob('*')
+    cfiles = itertools.islice(cfiles, start, None)
     for i, cfile in enumerate(cfiles):
         output = raw_code2dict(cfile)
         output["idx"] = i
