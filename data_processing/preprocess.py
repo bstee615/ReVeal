@@ -22,7 +22,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d
 logger = logging.getLogger(__name__)
 
 
-def preprocess(input_dir, preprocessed_dir, shard_len, wv_name, portion='full_graph',
+def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_graph',
                draper=False, vuld_syse=False):
     assert input_dir.exists(), input_dir
 
@@ -58,7 +58,7 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_name, portion='full_gr
     # Load pretrained Word2Vec model. Might need to be renamed
     # if it's freshly extracted from replication.zip.
     # Paper uses an embedding size of 100
-    model = Word2Vec.load(str(input_dir / wv_name))
+    model = Word2Vec.load(wv_path)
 
     # Preprocess data
     input_data = get_input(input_dir, start=max_idx)
@@ -149,6 +149,7 @@ def main():
     args = parser.parse_args()
 
     wv_name = f'raw_code_{args.project}.100'
+    wv_path = Path(args.input[0]) / wv_name
 
     output_dir = Path(args.output)
     output_dir.mkdir(exist_ok=True)
@@ -159,7 +160,7 @@ def main():
         assert input_dir.exists(), input_dir
         preprocessed_dir = output_dir / 'preprocessed' / input_dir.name
         preprocessed_dir.mkdir(exist_ok=True, parents=True)
-        preprocessed_data = preprocess(input_dir, preprocessed_dir, args.shard_len, wv_name)
+        preprocessed_data = preprocess(input_dir, preprocessed_dir, args.shard_len, wv_path)
         all_preprocessed_data.extend(preprocessed_data)
 
     ggnn_input_dir = output_dir / 'ggnn_input'
