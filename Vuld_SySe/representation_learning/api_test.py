@@ -47,9 +47,9 @@ def load_train_valid_test_old(ds):
     features = []
     targets = []
     for part in parts:
-        json_data_file = open(ds + part + '_GGNNinput_graph.json')
-        data = json.load(json_data_file)
-        json_data_file.close()
+        data_file = open(ds + part + '_GGNNinput_graph.pkl', 'rb')
+        data = pickle.load(data_file)
+        data_file.close()
         for d in data:
             features.append(d['graph_feature'])
             targets.append(d['target'])
