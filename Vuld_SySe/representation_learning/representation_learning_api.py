@@ -7,6 +7,10 @@ from torch.optim import Adam
 from graph_dataset import DataSet
 from models import MetricLearningModel
 from trainer import train, predict, predict_proba, evaluate as evaluate_from_model
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class RepresentationLearningModel(BaseEstimator):
@@ -14,8 +18,7 @@ class RepresentationLearningModel(BaseEstimator):
                  alpha=0.5, lambda1=0.5, lambda2=0.001, hidden_dim=256,  # Model Parameters
                  dropout=0.2, batch_size=64, balance=True,   # Model Parameters
                  num_epoch=100, max_patience=20,  # Training Parameters
-                 print=False, num_layers=1
-                 ):
+                 num_layers=1):
         self.hidden_dim = hidden_dim
         self.alpha = alpha
         self.lambda1 = lambda1
@@ -27,12 +30,7 @@ class RepresentationLearningModel(BaseEstimator):
         self.balance = balance
         self.cuda = torch.cuda.is_available()
         assert self.cuda
-        self.print = print
         self.num_layers = num_layers
-        if print:
-            self.output_buffer = sys.stderr
-        else:
-            self.output_buffer = None
         pass
 
     def fit(self, train_x, train_y):
@@ -63,15 +61,13 @@ class RepresentationLearningModel(BaseEstimator):
             self.dataset.add_data_entry(_x.tolist(), _y.item(), 'valid')
         for _x, _y in zip(test_x, test_y):
             self.dataset.add_data_entry(_x.tolist(), _y.item(), 'test')
-        self.dataset.initialize_dataset(balance=self.balance, output_buffer=self.output_buffer)
+        self.dataset.initialize_dataset(balance=self.balance)
         train(
             model=self.model, dataset=self.dataset, optimizer=self.optimizer,
             save_path=save_path, num_epochs=self.num_epoch, max_patience=self.max_patience,
-            cuda_device=0 if self.cuda else -1,
-            output_buffer=self.output_buffer
+            cuda_device=0 if self.cuda else -1
         )
-        if self.output_buffer is not None:
-            print('Training Complete', file=self.output_buffer)
+        logger.info('Training Complete')
 
     def predict(self, text_x):
         if not hasattr(self, 'dataset'):
@@ -112,8 +108,7 @@ class RepresentationLearningModel(BaseEstimator):
             self.dataset.add_data_entry(_x.tolist(), _y.item(), part='test')
         acc, pr, rc, f1 = evaluate_from_model(
             model=self.model, iterator_function=self.dataset.get_next_test_batch,
-            _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1,
-            output_buffer=self.output_buffer
+            _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1
         )
         return {
             'accuracy': acc,
@@ -130,7 +125,6 @@ class RepresentationLearningModel(BaseEstimator):
             self.dataset.add_data_entry(_x.tolist(), _y.item(), part='test')
         _, _, _, f1 = evaluate_from_model(
             model=self.model, iterator_function=self.dataset.get_next_test_batch,
-            _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1,
-            output_buffer=self.output_buffer
+            _batch_count=self.dataset.initialize_test_batches(), cuda_device=0 if self.cuda else -1
         )
         return f1

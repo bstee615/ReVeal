@@ -6,6 +6,8 @@ import numpy as np
 import torch
 import json
 from imblearn.over_sampling import SMOTE
+import logging
+logger = logging.getLogger(__name__)
 
 
 class DataEntry:
@@ -48,7 +50,7 @@ class DataSet:
         self.positive_indices_in_train = []
         self.negative_indices_in_train = []
 
-    def initialize_dataset(self, balance=True, output_buffer=sys.stderr):
+    def initialize_dataset(self, balance=True):
         if isinstance(balance, bool) and balance:
             entries = []
             train_features = []
@@ -84,17 +86,11 @@ class DataSet:
             else:
                 self.negative_indices_in_train.append(tidx)
         self.initialize_train_batches()
-        if output_buffer is not None:
-            print('Number of Train Entries %d #Batches %d' % \
-                  (len(self.train_entries), len(self.train_batch_indices)), file=output_buffer)
+        logger.info('Number of Train Entries %d #Batches %d' % (len(self.train_entries), len(self.train_batch_indices)))
         self.initialize_valid_batches()
-        if output_buffer is not None:
-            print('Number of Valid Entries %d #Batches %d' % \
-                  (len(self.valid_entries), len(self.valid_batch_indices)), file=output_buffer)
+        logger.info('Number of Valid Entries %d #Batches %d' % (len(self.valid_entries), len(self.valid_batch_indices)))
         self.initialize_test_batches()
-        if output_buffer is not None:
-            print('Number of Test  Entries %d #Batches %d' % \
-                  (len(self.test_entries), len(self.test_batch_indices)), file=output_buffer)
+        logger.info('Number of Test  Entries %d #Batches %d' % (len(self.test_entries), len(self.test_batch_indices)))
 
     def add_data_entry(self, feature, label, part='train', file_name=None):
         assert part in ['train', 'valid', 'test']
@@ -218,9 +214,8 @@ class DataSet:
         return features
 
 
-def create_dataset(train_file, valid_file=None, test_file=None, batch_size=32, output_buffer=sys.stderr):
-    if output_buffer is not None:
-        print('Reading Train data from %s' % train_file, file=output_buffer)
+def create_dataset(train_file, valid_file=None, test_file=None, batch_size=32):
+    logger.info('Reading Train data from %s' % train_file)
     train_data = json.load(open(train_file))
     # "target": 1, "graph_feature"
     hdim = len(train_data[0]["graph_feature"])
@@ -228,14 +223,12 @@ def create_dataset(train_file, valid_file=None, test_file=None, batch_size=32, o
     for data in train_data:
         dataset.add_data_entry(data["graph_feature"], min(int(data["target"]), 1), part='train')
     if valid_file is not None:
-        if output_buffer is not None:
-            print('Reading Valid data from %s' % valid_file, file=output_buffer)
+        logger.info('Reading Valid data from %s' % valid_file)
         valid_data = json.load(open(valid_file))
         for data in valid_data:
             dataset.add_data_entry(data["graph_feature"], min(int(data["target"]), 1), part='valid')
     if test_file is not None:
-        if output_buffer is not None:
-            print('Reading Test data from %s' % test_file, file=output_buffer)
+        logger.info('Reading Test data from %s' % test_file)
         test_data = json.load(open(test_file))
         for data in test_data:
             dataset.add_data_entry(data["graph_feature"], min(int(data["target"]), 1), part='test')
