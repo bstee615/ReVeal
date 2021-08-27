@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import pickle
 from pathlib import Path
@@ -21,36 +22,50 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d
 logger = logging.getLogger(__name__)
 
 
-def preprocess(total, project_dir, output_dir, wv_name, shard_len, portion='full_graph',
+def preprocess(input_dir, preprocessed_dir, shard_len, wv_name, portion='full_graph',
                draper=False, vuld_syse=False):
+    assert input_dir.exists(), input_dir
+
+    total = len(list((input_dir / 'raw_code').glob('*')))
+    assert total > 0, 'No C files'
+    logger.info(f'{total} items')
+
     # Prepare inputs
-    pbar = tqdm.tqdm(total=total)
-    code_dir = project_dir / 'raw_code'
-    parsed_dir = project_dir / 'parsed'
+    code_dir = input_dir / 'raw_code'
+    parsed_dir = input_dir / 'parsed'
     assert code_dir.exists(), code_dir
     assert parsed_dir.exists(), parsed_dir
     logger.info(f'Number of Input Files: {total}')
 
+    project = input_dir.name
+
     # Load previous progress
+    all_output_data = []
     loaded_progress = []
-    old_shards, _ = get_shards(output_dir)
+    old_shards, _ = get_shards(preprocessed_dir)
     for shard_filename in old_shards:
         with open(shard_filename, 'rb') as f:
             loaded_progress += pickle.load(f)
+    all_output_data.extend(loaded_progress)
     if len(loaded_progress) > 0:
         max_idx = loaded_progress[-1]["idx"]
     else:
         max_idx = 0
-
-    # Preprocess data
-    output_data = []
-    all_output_data = []
-    pbar.update(max_idx)
-    output_data_logged = len(loaded_progress)
+    logger.info(f'Skipping to index {max_idx}/{total}, assuming all prior indices are sequential')
     if max_idx == total - 1:
         return
-    input_data = get_input(project_dir, start=max_idx)
-    model = Word2Vec.load(str(project_dir / wv_name))
+
+    # Load pretrained Word2Vec model. Might need to be renamed
+    # if it's freshly extracted from replication.zip.
+    # Paper uses an embedding size of 100
+    model = Word2Vec.load(str(input_dir / wv_name))
+
+    # Preprocess data
+    input_data = get_input(input_dir, start=max_idx)
+    pbar = tqdm.tqdm(total=total, desc=f'{input_dir}')
+    pbar.update(max_idx)
+    output_data_logged = len(loaded_progress)
+    output_data = []
     for d in input_data:
         try:
             file_name = d["file_name"]
@@ -106,16 +121,17 @@ def preprocess(total, project_dir, output_dir, wv_name, shard_len, portion='full
 
             # Save shards periodically
             if len(output_data) > 0 and len(output_data) % shard_len == 0:
-                _, new_shard = get_shards(output_dir)
+                _, new_shard = get_shards(preprocessed_dir)
                 with open(new_shard, 'wb') as f:
                     pickle.dump(output_data, f)
                     all_output_data.extend(output_data)
                     del output_data
+                    output_data = []
         finally:
             pbar.update(1)
             pbar.set_postfix({"output data": output_data_logged})
     if len(output_data) > 0:
-        _, new_shard = get_shards(output_dir)
+        _, new_shard = get_shards(preprocessed_dir)
         with open(new_shard, 'wb') as f:
             pickle.dump(output_data, f)
             all_output_data.extend(output_data)
@@ -129,29 +145,33 @@ def main():
                         choices=['chrome_debian', 'devign'], required=True)
     parser.add_argument('--input', help='input directory, containing <name>/{raw_code,parsed}', required=True)
     parser.add_argument('--output', help='output and intermediate processing directory', required=True)
-    parser.add_argument('--restart', help='restart processing instead of loading saved shards', action='store_true')
-    parser.add_argument('--word2vec_name', help='Word2Vec file name')
     parser.add_argument('--shard_len', help='shard length', type=int, default=5000)
     args = parser.parse_args()
 
-    input_dir = Path(args.input)
-    assert input_dir.exists(), input_dir
+    wv_name = f'raw_code_{args.project}.100'
 
-    project_dir = input_dir / args.project
-    total = len(list((project_dir / 'raw_code').glob('*')))
-    assert total > 0, 'No C files'
-    logger.info(f'{total} items')
-
-    output_dir = Path(args.output / args.project)
+    output_dir = Path(args.output)
     output_dir.mkdir(exist_ok=True)
 
-    preprocessed_dir = output_dir / 'preprocessed'
-    preprocessed_dir.mkdir(exist_ok=True)
-    preprocessed_data = preprocess(total, project_dir, preprocessed_dir, args.word2vec_name,
-                                   args.shard_len)
+    all_preprocessed_data = []
+    for input_path in args.input:
+        input_dir = Path(input_path)
+        assert input_dir.exists(), input_dir
+        preprocessed_dir = output_dir / 'preprocessed' / input_dir.name
+        preprocessed_dir.mkdir(exist_ok=True, parents=True)
+        preprocessed_data = preprocess(input_dir, preprocessed_dir, args.shard_len, wv_name)
+        all_preprocessed_data.extend(preprocessed_data)
+
     ggnn_input_dir = output_dir / 'ggnn_input'
     ggnn_input_dir.mkdir(exist_ok=True)
-    split_and_save(preprocessed_data, ggnn_input_dir)
+    with open(ggnn_input_dir / 'info.json', 'w') as f:
+        info = {
+            "args.input": args.input,
+            "wv_name": wv_name,
+            "len(all_preprocessed_data)": all_preprocessed_data,
+        }
+        json.dump(info, f, indent=2)
+    split_and_save(all_preprocessed_data, ggnn_input_dir)
 
 
 if __name__ == '__main__':
