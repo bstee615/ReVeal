@@ -1,5 +1,6 @@
 data/*
-data_processing/.ipynb_checkpoints/*
+.ipynb_checkpoints
+__pycache__
 models/*
 outputs/
 data_collection/*.csv
