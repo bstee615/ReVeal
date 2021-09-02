@@ -4,3 +4,6 @@
 [submodule "Devign"]
 	path = Devign
 	url = https://github.com/bstee615/Devign
+[submodule "cfactor"]
+	path = cfactor
+	url = https://github.com/bstee615/cfactor.git
