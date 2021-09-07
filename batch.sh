@@ -11,9 +11,8 @@
 #SBATCH --output="sbatch-%j.out" # job standard output file (%j replaced by job id)
 
 envdir="$PWD/../env"
-echo Environment: $envdir Current directory: $PWD
 module load miniconda3
-source activate "$envdir"
+source activate ReVeal
 #bash full_run.sh -i "$PWD/data/chrome_debian/" -o "$PWD/out/" -n chrome_debian
 #bash -x wip.sh -i "$PWD/data/chrome_debian/" -o "$PWD/out/" -n chrome_debian
 # bash -x partial_data.sh -i "$PWD/data/chrome_debian/" -o "$PWD/out/" -n chrome_debian

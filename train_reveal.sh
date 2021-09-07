@@ -1,6 +1,6 @@
 #!/bin/bash
 
-name="chrome_debian"
+name="chrome_debian$1"
 outpdir="out/$name"
 
 mkdir -p "$outpdir" "$outpdir/models"
