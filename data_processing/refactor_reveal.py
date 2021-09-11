@@ -10,23 +10,28 @@ import pickle
 import shutil
 import subprocess
 import tempfile
+from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
 import tqdm as tqdm
 
-import refactorings
 from cfactor import refactorings
 from data_processing.create_ggnn_input import get_input
+import random
 
 import logging
 logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%Y-%m-%d:%H:%M:%S',
                     level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+logging.getLogger().addHandler(logging.StreamHandler())
+logging.getLogger().addHandler(logging.FileHandler('app.log'))
+
+random.seed(0)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-i', "--input_dir", help="Input source code files", default='../data/chrome_debian')
+parser.add_argument('-i', "--input_dir", help="Input source code files", default='./data/chrome_debian')
 parser.add_argument('--nproc', default='detect')
 parser.add_argument('--mode', default='gen')
 parser.add_argument('--slice', default=None)
@@ -45,13 +50,6 @@ else:
     nproc = int(args.nproc)
     assert nproc <= max_nproc
 
-errors_log = Path('errors.log')
-if errors_log.exists():
-    errors_log.unlink()
-app_log = Path('app.log')
-if app_log.exists():
-    app_log.unlink()
-
 
 def do_one(t):
     idx, fn = t
@@ -62,10 +60,10 @@ def do_one(t):
         )
         new_lines, applied = project.apply_all(return_applied=True)
         if new_lines is not None:
-            return idx, ''.join(new_lines), applied
+            return idx, fn["file_name"], ''.join(new_lines), [f.__name__ for f in applied]
         else:
             logger.warning('idx %d filename %s not transformed', idx, fn["file_name"])
-            return idx, new_lines, applied
+            return idx, fn["file_name"], new_lines, [f.__name__ for f in applied]
     except Exception as e:
         logger.exception('idx %d filename %s had an error', idx, fn["file_name"], exc_info=e)
     finally:
@@ -89,6 +87,7 @@ def get_shards():
     shard_idx = 0
     shard_filename = Path(f'new_functions.pkl.shard{shard_idx}')
     while shard_filename.exists():
+        existing_shards.append(shard_filename)
         shard_idx += 1
         shard_filename = Path(f'new_functions.pkl.shard{shard_idx}')
     new_shard = shard_filename
@@ -96,7 +95,10 @@ def get_shards():
 
 
 def main():
-    json_data = get_input(Path(args.input_dir))
+    input_dir = Path(args.input_dir)
+    total = len(list((input_dir / 'raw_code').glob('*')))
+    logger.info('%d samples', total)
+    json_data = get_input(input_dir)
     if args.test is not None:
         json_data = itertools.islice(json_data, args.test)
         logger.info('cutting to %d samples', args.test)
@@ -140,25 +142,63 @@ def main():
 
         new_functions = []
 
+        old_shards, _ = get_shards()
+        logger.info('%d shards', len(old_shards))
+        for shard in old_shards:
+            with open(shard, 'rb') as f:
+                shard_new_functions = pickle.load(f)
+                logger.info('%d functions in shard %s', len(shard_new_functions), shard)
+                new_functions.extend(shard_new_functions)
         logger.info('%d functions total', len(new_functions))
+        if len(new_functions) == 0:
+            logger.error('0 functions. Quitting.')
+            exit(1)
 
         functions_idx, functions = zip(*list(df.iterrows()))
 
-        total_changed = 0
         showed = 0
-        for i, new_code, applied in new_functions:
+        show_n_programs = 0
+
+        applied_counts = defaultdict(int)  # Count of how many programs had a transformation applied
+        num_applied = []  # Number of transformations applied to each program
+        num_lines = []  # Number of (non-blank) lines in each program's code
+        num_blank_lines = []  # Number of (non-blank) lines in each program's code
+        num_changed_lines = []  # Number of changed lines in each program's code
+        total_switches = 0  # Number of programs containing "switch"
+        total_loops = 0  # Number of programs containing "for"
+        for i, filename, new_code, applied in new_functions:
             old_lines = functions[i]["code"].splitlines(keepends=True)
             new_lines = new_code.splitlines(keepends=True)
             diff = difflib.ndiff(old_lines, new_lines)
-            num_changed = sum(1 for line in diff if line[:2] in ('- ', '+ '))
-            total_changed += num_changed
-            if showed >= 5:
-                continue
-            logger.info('Applied: %s', [x.__name__ for x in applied])
-            logger.info(''.join(difflib.unified_diff(old_lines, new_lines)))
-            showed += 1
-        
-        logger.info('Average changed lines: %s', total_changed / len(new_functions if new_functions != 0 else 1))
+            for a in applied:
+                applied_counts[a] += 1
+            num_applied.append(len(applied))
+            num_changed_lines.append(len([line for line in diff if line[:2] in ('- ', '+ ')]))
+            num_lines.append(len([line for line in old_lines if not line.isspace()]))
+            num_blank_lines.append(len([line for line in old_lines if line.isspace()]))
+
+            if 'switch' in functions[i]["code"]:
+                total_switches += 1
+            if 'for' in functions[i]["code"]:
+                total_loops += 1
+
+            if showed < show_n_programs:
+                print(f'Applied: {applied}')
+                print(''.join(difflib.unified_diff(old_lines, new_lines, fromfile=filename, tofile=filename)))
+                showed += 1
+
+        # averages
+        print(f'Average # lines in program: {sum(num_lines) / len(new_functions):.2f}')
+        print(f'Average # blank lines: {sum(num_blank_lines) / len(new_functions):.2f}')
+        print(f'Average # changed lines: {sum(num_changed_lines) / len(new_functions):.2f}')
+        print(f'Average # transformations applied: {sum(num_applied) / len(new_functions):.2f}')
+        # totals
+        for transform, count in applied_counts.items():
+            print(f'{transform}: {count}')
+        for v in set(num_applied):
+            print(f'{v} transformations applied: {len([x for x in num_applied if x == v])}')
+        print(f'# programs with switch: {total_switches}')
+        print(f'# programs with for loop: {total_loops}')
 
 
 if __name__ == '__main__':
