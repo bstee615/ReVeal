@@ -82,7 +82,7 @@ def train(model, dataset, optimizer, save_path, num_epochs, max_patience=5,
             if cuda_device != -1:
                 model.cuda(device=cuda_device)
     if os.path.exists(save_path):
-        _save_file = open(save_path + '/' + model.__class__.__name__ + '-model.bin', 'wb')
+        _save_file = open(save_path, 'wb')
     else:
         _save_file = open('temp-model.bin', 'wb')
     torch.save(model.state_dict(), _save_file)

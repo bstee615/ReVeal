@@ -1,8 +1,5 @@
 #!/bin/bash
 
-name="chrome_debian$1"
-outpdir="out/$name"
+input_dir="$1"
 
-mkdir -p "$outpdir" "$outpdir/models"
-
-python Devign/main.py --model_type devign --input_dir "$outpdir/ggnn_input/" --model_dir "$outpdir/models/" || exit 1
+python Devign/main.py --model_type devign --input_dir "$input_dir/ggnn_input/" --model_dir "$input_dir/models/" --seed 0 || exit 1
