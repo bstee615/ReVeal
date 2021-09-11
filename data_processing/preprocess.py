@@ -12,14 +12,14 @@ from data_processing.create_ggnn_input import get_input
 from data_processing.extract_graph import get_graph
 from data_processing.extract_slices import get_slices
 from data_processing.utils import get_shards
-from split_data import split_and_save
+from split_data import split_and_save, split_and_save_augmented
 from utils import read_csv
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%Y-%m-%d:%H:%M:%S',
                     level=logging.INFO)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 
 def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_graph',
@@ -37,34 +37,33 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_gr
     assert parsed_dir.exists(), parsed_dir
     logger.info(f'Number of Input Files: {total}')
 
-    project = input_dir.name
-
     # Load previous progress
     all_output_data = []
-    loaded_progress = []
     old_shards, _ = get_shards(preprocessed_dir)
+    logger.info(f'Loaded {len(old_shards)} shards')
     for shard_filename in old_shards:
         with open(shard_filename, 'rb') as f:
-            loaded_progress += pickle.load(f)
-    all_output_data.extend(loaded_progress)
-    if len(loaded_progress) > 0:
-        max_idx = loaded_progress[-1]["idx"]
+            shard_data = pickle.load(f)
+            logger.info(f'len: {len(shard_data)} min: {min(p["idx"] for p in shard_data)} max: {max(p["idx"] for p in shard_data)}')
+            all_output_data += shard_data
+    if len(all_output_data) > 0:
+        max_idx = max(p["idx"] for p in all_output_data)
+        logger.info(f'Skipping to index {max_idx}/{total}, assuming all prior indices are sequential')
     else:
         max_idx = 0
-    logger.info(f'Skipping to index {max_idx}/{total}, assuming all prior indices are sequential')
     if max_idx == total - 1:
-        return
+        return all_output_data
 
     # Load pretrained Word2Vec model. Might need to be renamed
     # if it's freshly extracted from replication.zip.
     # Paper uses an embedding size of 100
-    model = Word2Vec.load(wv_path)
+    model = Word2Vec.load(str(wv_path))
 
     # Preprocess data
     input_data = get_input(input_dir, start=max_idx)
     pbar = tqdm.tqdm(total=total, desc=f'{input_dir}')
     pbar.update(max_idx)
-    output_data_logged = len(loaded_progress)
+    # output_data_logged = len(loaded_progress)
     output_data = []
     for d in input_data:
         try:
@@ -77,8 +76,10 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_gr
             assert file_name == file_name.strip()
             assert label in (0, 1)
 
-            data_instance = d
-            data_instance['file_path'] = str(code_dir / file_name)
+            d['file_path'] = str(code_dir / file_name)
+
+            data_instance = dict(d)
+            output_data.append(data_instance)
 
             # Load Joern output
             nodes_file_path = parsed_dir / file_name / 'nodes.csv'
@@ -115,13 +116,13 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_gr
             data_instance.update(graph_data)
 
             # Return data instance
-            output_data.append(data_instance)
-            output_data_logged += 1
+            # output_data_logged += 1
             del d
 
             # Save shards periodically
             if len(output_data) > 0 and len(output_data) % shard_len == 0:
                 _, new_shard = get_shards(preprocessed_dir)
+                logger.info(f'saving shard {new_shard}')
                 with open(new_shard, 'wb') as f:
                     pickle.dump(output_data, f)
                     all_output_data.extend(output_data)
@@ -129,9 +130,10 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_gr
                     output_data = []
         finally:
             pbar.update(1)
-            pbar.set_postfix({"output data": output_data_logged})
+            # pbar.set_postfix({"output data": f'{output_data_logged} ({output_data_logged/total*100:.2f}%)'})
     if len(output_data) > 0:
         _, new_shard = get_shards(preprocessed_dir)
+        logger.info(f'saving last shard {new_shard}')
         with open(new_shard, 'wb') as f:
             pickle.dump(output_data, f)
             all_output_data.extend(output_data)
@@ -143,36 +145,43 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--project', help='name of project for differentiating files',
                         choices=['chrome_debian', 'devign'], required=True)
-    parser.add_argument('--input', help='input directory, containing <name>/{raw_code,parsed}', required=True)
+    parser.add_argument('--input', help='input directory, containing <name>/{raw_code,parsed}', required=True, nargs='+')
     parser.add_argument('--output', help='output and intermediate processing directory', required=True)
     parser.add_argument('--shard_len', help='shard length', type=int, default=5000)
+    parser.add_argument('--with_augmented', action='store_true')
     args = parser.parse_args()
+
+    output_dir = Path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    logger.addHandler(logging.FileHandler(str(output_dir / 'preprocess.log')))
 
     wv_name = f'raw_code_{args.project}.100'
     wv_path = Path(args.input[0]) / wv_name
 
-    output_dir = Path(args.output)
-    output_dir.mkdir(exist_ok=True)
-
-    all_preprocessed_data = []
+    all_preprocessed_data = {}
     for input_path in args.input:
         input_dir = Path(input_path)
         assert input_dir.exists(), input_dir
-        preprocessed_dir = output_dir / 'preprocessed' / input_dir.name
+        preprocessed_dir = input_dir / 'preprocessed' / input_dir.name
         preprocessed_dir.mkdir(exist_ok=True, parents=True)
         preprocessed_data = preprocess(input_dir, preprocessed_dir, args.shard_len, wv_path)
-        all_preprocessed_data.extend(preprocessed_data)
+        logger.info(f'{len(preprocessed_data)} samples from {input_dir}')
+        preprocessed_data = [d for d in preprocessed_data if "graph" in d]
+        logger.info(f'cut to {len(preprocessed_data)} samples')
+        all_preprocessed_data[input_path] = preprocessed_data
 
-    ggnn_input_dir = output_dir / 'ggnn_input'
-    ggnn_input_dir.mkdir(exist_ok=True)
-    with open(ggnn_input_dir / 'info.json', 'w') as f:
+    with open(output_dir / 'info.json', 'w') as f:
         info = {
             "args.input": args.input,
             "wv_name": wv_name,
-            "len(all_preprocessed_data)": all_preprocessed_data,
+            "len(all_preprocessed_data)": {k: len(v) for k, v in all_preprocessed_data.items()},
         }
         json.dump(info, f, indent=2)
-    split_and_save(all_preprocessed_data, ggnn_input_dir)
+
+    if args.with_augmented:
+        split_and_save_augmented(all_preprocessed_data, output_dir)
+    else:
+        split_and_save(all_preprocessed_data, output_dir)
 
 
 if __name__ == '__main__':
