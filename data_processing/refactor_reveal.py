@@ -38,9 +38,19 @@ parser.add_argument('--slice', default=None)
 parser.add_argument('--test', default=None, type=int)
 parser.add_argument('--shard-len', default=5000, type=int)
 parser.add_argument('--chunk', default=10, type=int)
+parser.add_argument('--style', nargs='+')
 parser.add_argument('--remainder', action='store_true')
 parser.add_argument('--no-save', action='store_true')
 args = parser.parse_args()
+
+style_args = {
+    'one_of_each': 0,
+    'k_random': 1,
+    'threshold': 1,
+}
+args.style_type = args.style.pop(0)
+assert args.style_type in style_args, f'unknown option --style {args.style[0]}'
+assert len(args.style) == style_args[args.style_type], f'expected {style_args[args.style_type]} args for --style {args.style_type}, got {len(args.style)}'
 
 proc = subprocess.run('nproc', capture_output=True)
 max_nproc = int(proc.stdout)
@@ -56,7 +66,8 @@ def do_one(t):
     try:
         project = refactorings.TransformationProject(
             fn["file_name"], fn["code"],
-            transforms=refactorings.all_refactorings, picker=refactorings.random_picker
+            transforms=refactorings.all_refactorings, picker=refactorings.random_picker,
+            style=args.style_type, style_args=args.style
         )
         new_lines, applied = project.apply_all(return_applied=True)
         if new_lines is not None:
