@@ -10,27 +10,27 @@ import tqdm
 import tempfile
 import shutil
 import subprocess
-from create_ggnn_input import get_input
-import refactorings
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--input_dir', required=True)
 parser.add_argument('--output_dir', required=True)
 args = parser.parse_args()
 
+args.input_dir = Path(args.input_dir)
 args.output_dir = Path(args.output_dir)
 
 joern_parse = Path(__file__).parent.parent / "cfactor/old-joern/joern-parse"
 
 # Load new code shards
 shard_idx = 0
-shard_filename = Path(f'new_functions.pkl.shard{shard_idx}')
+shard_filename = args.input_dir / f'new_functions.pkl.shard{shard_idx}'
 data = []
 while shard_filename.exists():
     with open(shard_filename, 'rb') as f:
         shard = pickle.load(f)
         data.extend(shard)
     shard_idx += 1
-    shard_filename = Path(f'new_functions.pkl.shard{shard_idx}')
+    shard_filename = args.input_dir / f'new_functions.pkl.shard{shard_idx}'
 print(len(data))
 
 with tempfile.TemporaryDirectory(prefix=str(Path.cwd().absolute()) + '/tmp_') as tmpdir:

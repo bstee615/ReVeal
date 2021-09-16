@@ -17,7 +17,7 @@ import pandas as pd
 import tqdm as tqdm
 
 from cfactor import refactorings
-from data_processing.create_ggnn_input import get_input
+from data_processing.create_ggnn_input import read_input, get_input_files
 import random
 
 import logging
@@ -25,22 +25,23 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d
                     datefmt='%Y-%m-%d:%H:%M:%S',
                     level=logging.INFO)
 logger = logging.getLogger()
-logging.getLogger().addHandler(logging.StreamHandler())
-logging.getLogger().addHandler(logging.FileHandler('app.log'))
-
-random.seed(0)
+# logging.getLogger().addHandler(logging.StreamHandler())
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', "--input_dir", help="Input source code files", default='./data/chrome_debian')
+parser.add_argument('-o', "--output_dir", help="Output refactored source code files", default='./refactored_code')
 parser.add_argument('--nproc', default='detect')
 parser.add_argument('--mode', default='gen')
 parser.add_argument('--slice', default=None)
 parser.add_argument('--test', default=None, type=int)
 parser.add_argument('--shard-len', default=5000, type=int)
 parser.add_argument('--chunk', default=10, type=int)
-parser.add_argument('--style', nargs='+')
+parser.add_argument('--style', nargs='+', default=['one_of_each'])
+parser.add_argument('--seed', default=0, type=int)
+parser.add_argument('--shuffle_refactorings', action='store_true')
 parser.add_argument('--remainder', action='store_true')
 parser.add_argument('--no-save', action='store_true')
+parser.add_argument('--clean', action='store_true')
 args = parser.parse_args()
 
 style_args = {
@@ -60,13 +61,28 @@ else:
     nproc = int(args.nproc)
     assert nproc <= max_nproc
 
+args.output_dir = Path(args.output_dir)
+if not args.output_dir.exists():
+    args.output_dir.mkdir(parents=True)
+logging.getLogger().addHandler(logging.FileHandler(str(args.output_dir / 'refactor_reveal.log')))
+
+random.seed(args.seed)
+
+all_refactorings = list(refactorings.all_refactorings)
+if args.shuffle_refactorings:
+    random.shuffle(all_refactorings)
+
+logging.info(f'random seed: {args.seed}')
+logging.info(f'shuffle refactorings: {args.shuffle_refactorings} {[r.__name__ for r in all_refactorings]}')
+logging.info(f'transformation style: {args.style_type} {args.style}')
+logging.info(f'nproc: {nproc}/{max_nproc}')
 
 def do_one(t):
     idx, fn = t
     try:
         project = refactorings.TransformationProject(
             fn["file_name"], fn["code"],
-            transforms=refactorings.all_refactorings, picker=refactorings.random_picker,
+            transforms=all_refactorings, picker=refactorings.random_picker,
             style=args.style_type, style_args=args.style
         )
         new_lines, applied = project.apply_all(return_applied=True)
@@ -96,32 +112,41 @@ def filter_functions(df):
 def get_shards():
     existing_shards = []
     shard_idx = 0
-    shard_filename = Path(f'new_functions.pkl.shard{shard_idx}')
+    shard_filename = args.output_dir / f'new_functions.pkl.shard{shard_idx}'
     while shard_filename.exists():
         existing_shards.append(shard_filename)
         shard_idx += 1
-        shard_filename = Path(f'new_functions.pkl.shard{shard_idx}')
+        shard_filename = args.output_dir / f'new_functions.pkl.shard{shard_idx}'
     new_shard = shard_filename
     return existing_shards, new_shard
 
 
 def main():
+    if args.clean:
+        existing_shards, _ = get_shards()
+        logger.info(f'cleaning shards {[str(s) for s in existing_shards]}')
+        for s in existing_shards:
+            s.unlink()
+
     input_dir = Path(args.input_dir)
     total = len(list((input_dir / 'raw_code').glob('*')))
     logger.info('%d samples', total)
-    json_data = get_input(input_dir)
+    cfiles = get_input_files(input_dir)
     if args.test is not None:
-        json_data = itertools.islice(json_data, args.test)
         logger.info('cutting to %d samples', args.test)
-    df = pd.DataFrame(data=json_data)
+        cfiles = itertools.islice(cfiles, 0, args.test)
+    logger.info(f'reading inputs...')
+    raw_code_input = read_input(cfiles)
+    # df = pd.DataFrame(data=raw_code_input)
     if args.mode == 'gen':
-        logger.info('%d samples', len(df))
+        # logger.info('%d samples', len(df))
 
-        if args.remainder:
-            df = filter_functions(df)
-            logger.info('filtered to remainder of %d samples', len(df))
+        # if args.remainder:
+        #     df = filter_functions(df)
+        #     logger.info('filtered to remainder of %d samples', len(df))
 
-        func_it = df.iterrows()
+        # func_it = df.iterrows()
+        func_it = enumerate(raw_code_input)
         if args.slice is not None:
             begin, end = args.slice.split(':')
             begin, end = int(begin), int(end)
@@ -139,7 +164,7 @@ def main():
 
         new_functions = []
         with multiprocessing.Pool(nproc) as p:
-            with tqdm.tqdm(total=len(df)) as pbar:
+            with tqdm.tqdm(total=total) as pbar:
                 # For very long iterables using a large value for chunksize can make the job complete
                 # much faster than using the default value of 1.
                 for new_func in p.imap_unordered(do_one, func_it, args.chunk):

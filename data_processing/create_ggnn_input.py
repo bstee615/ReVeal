@@ -18,14 +18,19 @@ def raw_code2dict(file_path):
     return output
 
 
-def get_input(project_dir, start=0):
+def get_input_files(project_dir):
     raw_code = project_dir / 'raw_code'
     assert raw_code.exists(), raw_code
-    cfiles = sorted(raw_code.glob('*'), key=lambda f: int(re.sub(r'[^0-9]', '', f.name)))
-    cfiles = itertools.islice(cfiles, start, None)
-    all_outputs = []
+    cfiles = list(raw_code.glob('*'))
+    logger.info(f'got {len(cfiles)} files. Sorting...')
+    cfiles = sorted(cfiles, key=lambda f: int(re.sub(r'[^0-9]', '', f.name)))
+    logger.info(f'done sorting.')
+    return cfiles
+
+
+def read_input(cfiles):
+    # for i, cfile in tqdm.tqdm(enumerate(cfiles), desc='raw code', total=len(cfiles)):
     for i, cfile in enumerate(cfiles):
         output = raw_code2dict(cfile)
         output["idx"] = i
-        all_outputs.append(output)
         yield output

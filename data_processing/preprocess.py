@@ -8,12 +8,11 @@ import tqdm
 from gensim.models import Word2Vec
 
 from data_processing.create_ggnn_data import get_ggnn_graph
-from data_processing.create_ggnn_input import get_input
+from data_processing.create_ggnn_input import read_input, get_input_files
 from data_processing.extract_graph import get_graph
 from data_processing.extract_slices import get_slices
-from data_processing.utils import get_shards
+from data_processing.utils import get_shards, read_csv
 from split_data import split_and_save, split_and_save_augmented
-from utils import read_csv
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%Y-%m-%d:%H:%M:%S',
@@ -60,7 +59,8 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_gr
     model = Word2Vec.load(str(wv_path))
 
     # Preprocess data
-    input_data = get_input(input_dir, start=max_idx)
+    files = get_input_files(input_dir)
+    input_data = read_input(files)
     pbar = tqdm.tqdm(total=total, desc=f'{input_dir}')
     pbar.update(max_idx)
     # output_data_logged = len(loaded_progress)
