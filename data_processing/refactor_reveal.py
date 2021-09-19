@@ -21,6 +21,7 @@ from data_processing.create_ggnn_input import read_input, get_input_files
 import random
 
 import logging
+
 logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%Y-%m-%d:%H:%M:%S',
                     level=logging.INFO)
@@ -42,12 +43,13 @@ parser.add_argument('--shuffle_refactorings', action='store_true')
 parser.add_argument('--remainder', action='store_true')
 parser.add_argument('--no-save', action='store_true')
 parser.add_argument('--clean', action='store_true')
+parser.add_argument('--no-new-names', action='store_true')
 args = parser.parse_args()
 
 style_args = {
     'one_of_each': 0,
     'k_random': 1,
-    'threshold': 1,
+    'threshold': 2,
 }
 args.style_type = args.style.pop(0)
 assert args.style_type in style_args, f'unknown option --style {args.style[0]}'
@@ -64,11 +66,14 @@ else:
 args.output_dir = Path(args.output_dir)
 if not args.output_dir.exists():
     args.output_dir.mkdir(parents=True)
-logging.getLogger().addHandler(logging.FileHandler(str(args.output_dir / 'refactor_reveal.log')))
+logging.getLogger().addHandler(logging.FileHandler(str(args.output_dir / f'refactor_reveal-{args.mode}.log')))
 
 random.seed(args.seed)
 
-all_refactorings = list(refactorings.all_refactorings)
+if args.no_new_names:
+    all_refactorings = list(refactorings.refactorings_without_new_names)
+else:
+    all_refactorings = list(refactorings.all_refactorings)
 if args.shuffle_refactorings:
     random.shuffle(all_refactorings)
 
@@ -137,16 +142,10 @@ def main():
         cfiles = itertools.islice(cfiles, 0, args.test)
     logger.info(f'reading inputs...')
     raw_code_input = read_input(cfiles)
-    # df = pd.DataFrame(data=raw_code_input)
     if args.mode == 'gen':
-        # logger.info('%d samples', len(df))
-
-        # if args.remainder:
-        #     df = filter_functions(df)
-        #     logger.info('filtered to remainder of %d samples', len(df))
+        func_it = enumerate(raw_code_input)
 
         # func_it = df.iterrows()
-        func_it = enumerate(raw_code_input)
         if args.slice is not None:
             begin, end = args.slice.split(':')
             begin, end = int(begin), int(end)
@@ -190,11 +189,12 @@ def main():
             logger.error('0 functions. Quitting.')
             exit(1)
 
-        functions_idx, functions = zip(*list(df.iterrows()))
+        function_paths = list(cfiles)
 
         showed = 0
         show_n_programs = 0
 
+        logger.info('counting diffs...')
         applied_counts = defaultdict(int)  # Count of how many programs had a transformation applied
         num_applied = []  # Number of transformations applied to each program
         num_lines = []  # Number of (non-blank) lines in each program's code
@@ -202,8 +202,10 @@ def main():
         num_changed_lines = []  # Number of changed lines in each program's code
         total_switches = 0  # Number of programs containing "switch"
         total_loops = 0  # Number of programs containing "for"
-        for i, filename, new_code, applied in new_functions:
-            old_lines = functions[i]["code"].splitlines(keepends=True)
+        for i, filename, new_code, applied in tqdm.tqdm(new_functions):
+            with open(function_paths[i]) as f:
+                old_code = f.read()
+            old_lines = old_code.splitlines(keepends=True)
             new_lines = new_code.splitlines(keepends=True)
             diff = difflib.ndiff(old_lines, new_lines)
             for a in applied:
@@ -213,9 +215,9 @@ def main():
             num_lines.append(len([line for line in old_lines if not line.isspace()]))
             num_blank_lines.append(len([line for line in old_lines if line.isspace()]))
 
-            if 'switch' in functions[i]["code"]:
+            if 'switch' in old_code:
                 total_switches += 1
-            if 'for' in functions[i]["code"]:
+            if 'for' in old_code:
                 total_loops += 1
 
             if showed < show_n_programs:
@@ -223,18 +225,24 @@ def main():
                 print(''.join(difflib.unified_diff(old_lines, new_lines, fromfile=filename, tofile=filename)))
                 showed += 1
 
-        # averages
-        print(f'Average # lines in program: {sum(num_lines) / len(new_functions):.2f}')
-        print(f'Average # blank lines: {sum(num_blank_lines) / len(new_functions):.2f}')
-        print(f'Average # changed lines: {sum(num_changed_lines) / len(new_functions):.2f}')
-        print(f'Average # transformations applied: {sum(num_applied) / len(new_functions):.2f}')
-        # totals
-        for transform, count in applied_counts.items():
-            print(f'{transform}: {count}')
-        for v in set(num_applied):
-            print(f'{v} transformations applied: {len([x for x in num_applied if x == v])}')
-        print(f'# programs with switch: {total_switches}')
-        print(f'# programs with for loop: {total_loops}')
+            del old_code
+            del old_lines
+            del new_lines
+
+        for print_function in (logger.info, print):
+            # averages
+            print_function(f'Average # lines in program: {sum(num_lines) / len(new_functions):.2f}')
+            print_function(f'Average # blank lines: {sum(num_blank_lines) / len(new_functions):.2f}')
+            print_function(f'# programs with switch: {total_switches}')
+            print_function(f'# programs with for loop: {total_loops}')
+
+            print_function(f'Average # changed lines: {sum(num_changed_lines) / len(new_functions):.2f}')
+            print_function(f'Average # transformations applied: {sum(num_applied) / len(new_functions):.2f}')
+            # totals
+            for transform in sorted(all_refactorings, key=lambda r: r.__name__):
+                print_function(f'{transform.__name__}: {applied_counts[transform.__name__]}')
+            for v in set(num_applied):
+                print_function(f'{v} transformations applied: {len([x for x in num_applied if x == v])}')
 
 
 if __name__ == '__main__':

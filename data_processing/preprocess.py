@@ -12,7 +12,7 @@ from data_processing.create_ggnn_input import read_input, get_input_files
 from data_processing.extract_graph import get_graph
 from data_processing.extract_slices import get_slices
 from data_processing.utils import get_shards, read_csv
-from split_data import split_and_save, split_and_save_augmented
+from split_data import split_and_save
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%Y-%m-%d:%H:%M:%S',
@@ -25,16 +25,15 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_gr
                draper=False, vuld_syse=False):
     assert input_dir.exists(), input_dir
 
-    total = len(list((input_dir / 'raw_code').glob('*')))
-    assert total > 0, 'No C files'
-    logger.info(f'{total} items')
+    files = get_input_files(input_dir)
+    assert len(files) > 0, 'no input files'
+    logger.info(f'Number of Input Files: {len(files)}')
 
     # Prepare inputs
     code_dir = input_dir / 'raw_code'
     parsed_dir = input_dir / 'parsed'
     assert code_dir.exists(), code_dir
     assert parsed_dir.exists(), parsed_dir
-    logger.info(f'Number of Input Files: {total}')
 
     # Load previous progress
     all_output_data = []
@@ -47,10 +46,10 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_gr
             all_output_data += shard_data
     if len(all_output_data) > 0:
         max_idx = max(p["idx"] for p in all_output_data)
-        logger.info(f'Skipping to index {max_idx}/{total}, assuming all prior indices are sequential')
+        logger.info(f'Skipping to index {max_idx}/{len(files)}, assuming all prior indices are sequential')
     else:
         max_idx = 0
-    if max_idx == total - 1:
+    if max_idx == len(files) - 1:
         return all_output_data
 
     # Load pretrained Word2Vec model. Might need to be renamed
@@ -59,9 +58,8 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_gr
     model = Word2Vec.load(str(wv_path))
 
     # Preprocess data
-    files = get_input_files(input_dir)
     input_data = read_input(files)
-    pbar = tqdm.tqdm(total=total, desc=f'{input_dir}')
+    pbar = tqdm.tqdm(total=len(files), desc=f'{input_dir}')
     pbar.update(max_idx)
     # output_data_logged = len(loaded_progress)
     output_data = []
@@ -143,23 +141,24 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_gr
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--project', help='name of project for differentiating files',
-                        choices=['chrome_debian', 'devign'], required=True)
-    parser.add_argument('--input', help='input directory, containing <name>/{raw_code,parsed}', required=True, nargs='+')
-    parser.add_argument('--output', help='output and intermediate processing directory', required=True)
+    # parser.add_argument('-p', '--project', help='name of project for differentiating files',
+    #                     choices=['chrome_debian', 'devign'], required=True)
+    parser.add_argument('-i', '--input', help='input directory, containing <name>/{raw_code,parsed}', required=True, nargs='+')
+    parser.add_argument('-o', '--output', help='output and intermediate processing directory', required=True)
     parser.add_argument('--shard_len', help='shard length', type=int, default=5000)
-    parser.add_argument('--with_augmented', action='store_true')
     args = parser.parse_args()
 
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.addHandler(logging.FileHandler(str(output_dir / 'preprocess.log')))
 
-    wv_name = f'raw_code_{args.project}.100'
-    wv_path = Path(args.input[0]) / wv_name
+    wv_path = next(Path(args.input[0]).glob('raw_code_*.100'))
+    # wv_name = f'raw_code_{args.project}.100'
+    # wv_path = Path(args.input[0]) / wv_name
 
     all_preprocessed_data = {}
     for input_path in args.input:
+        logger.info(f'preprocessing {input_path}...')
         input_dir = Path(input_path)
         assert input_dir.exists(), input_dir
         preprocessed_dir = input_dir / 'preprocessed' / input_dir.name
@@ -173,15 +172,13 @@ def main():
     with open(output_dir / 'info.json', 'w') as f:
         info = {
             "args.input": args.input,
-            "wv_name": wv_name,
+            "wv_name": wv_path.name,
             "len(all_preprocessed_data)": {k: len(v) for k, v in all_preprocessed_data.items()},
         }
         json.dump(info, f, indent=2)
 
-    if args.with_augmented:
-        split_and_save_augmented(all_preprocessed_data, output_dir)
-    else:
-        split_and_save(all_preprocessed_data, output_dir)
+    split_and_save(all_preprocessed_data, output_dir, augmented_datasets=args.input[1:], n_folds=5)
+    # split_and_save(all_preprocessed_data, output_dir, augmented_datasets=args.input[1:], n_folds=None)
 
 
 if __name__ == '__main__':
