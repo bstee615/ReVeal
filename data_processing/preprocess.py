@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import pickle
+import sys
 from pathlib import Path
 
 import tqdm
@@ -11,7 +12,6 @@ from data_processing.create_ggnn_data import get_ggnn_graph
 from data_processing.create_ggnn_input import read_input, get_input_files
 from data_processing.extract_graph import get_graph
 from data_processing.extract_slices import get_slices
-from data_processing.utils import get_shards, read_csv
 from split_data import split_and_save
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -19,6 +19,37 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d
                     level=logging.INFO)
 
 logger = logging.getLogger()
+
+def read_csv(csv_file_path):
+    data = []
+    with open(csv_file_path, encoding='utf-8', errors='ignore') as fp:
+        header = fp.readline()
+        header = header.strip()
+        h_parts = [hp.strip() for hp in header.split('\t')]
+        for line in fp:
+            line = line.strip()
+            instance = {}
+            lparts = line.split('\t')
+            for i, hp in enumerate(h_parts):
+                if i < len(lparts):
+                    content = lparts[i].strip()
+                else:
+                    content = ''
+                instance[hp] = content
+            data.append(instance)
+        return data
+
+
+def get_shards(output_dir):
+    old_shard_filenames = []
+    shard_idx = 0
+    shard_filename = output_dir / f'preprocessed_shard{shard_idx}.pkl'
+    while shard_filename.exists():
+        old_shard_filenames.append(shard_filename)
+        shard_idx += 1
+        shard_filename = output_dir / f'preprocessed_shard{shard_idx}.pkl'
+    return old_shard_filenames, shard_filename
+
 
 
 def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_graph',
@@ -42,7 +73,7 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_gr
     for shard_filename in old_shards:
         with open(shard_filename, 'rb') as f:
             shard_data = pickle.load(f)
-            logger.info(f'len: {len(shard_data)} min: {min(p["idx"] for p in shard_data)} max: {max(p["idx"] for p in shard_data)}')
+            # logger.info(f'len: {len(shard_data)} min: {min(p["idx"] for p in shard_data)} max: {max(p["idx"] for p in shard_data)}')
             all_output_data += shard_data
     if len(all_output_data) > 0:
         max_idx = max(p["idx"] for p in all_output_data)
@@ -158,6 +189,8 @@ def main():
 
     all_preprocessed_data = {}
     for input_path in args.input:
+        if input_path.endswith('/'):
+            input_path = input_path[:-1]
         logger.info(f'preprocessing {input_path}...')
         input_dir = Path(input_path)
         assert input_dir.exists(), input_dir
@@ -167,7 +200,11 @@ def main():
         logger.info(f'{len(preprocessed_data)} samples from {input_dir}')
         preprocessed_data = [d for d in preprocessed_data if "graph" in d]
         logger.info(f'cut to {len(preprocessed_data)} samples')
-        all_preprocessed_data[input_path] = preprocessed_data
+        if input_path in all_preprocessed_data:
+            logger.info(f'Already read {input_path}, assuming you want to add it again as augmentation. Adding as {input_path + "2"}')
+            all_preprocessed_data[input_path + '2'] = preprocessed_data
+        else:
+            all_preprocessed_data[input_path] = preprocessed_data
 
     with open(output_dir / 'info.json', 'w') as f:
         info = {
@@ -177,8 +214,11 @@ def main():
         }
         json.dump(info, f, indent=2)
 
-    split_and_save(all_preprocessed_data, output_dir, augmented_datasets=args.input[1:], n_folds=5)
-    # split_and_save(all_preprocessed_data, output_dir, augmented_datasets=args.input[1:], n_folds=None)
+    split_and_save(all_preprocessed_data, output_dir)
+
+    sys.path.append('Devign')
+    from Devign.main import main
+    main(raw_args=f'--input_dir {output_dir}')
 
 
 if __name__ == '__main__':

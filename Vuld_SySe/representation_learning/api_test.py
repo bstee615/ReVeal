@@ -20,14 +20,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger()
 
-def load_train_valid_test(ds):
+def load_train_valid_test(ds, fold):
     """
     Fixed train/valid/test split, preserving the split from GGNN model training.
     """
     features = []
     targets = []
     for part in parts:
-        data_file = open(ds + part + '_GGNNinput_graph.pkl', 'rb')
+        data_file = open(ds + part + f'_GGNNinput_graph-{fold}.pkl', 'rb')
         data = pickle.load(data_file)
         data_file.close()
         features.append([d['graph_feature'] for d in data])
@@ -80,14 +80,16 @@ if __name__ == '__main__':
 
     output_file_name = os.path.join(args.model_dir, f'{feature_name}-results.tsv')
 
+    n_folds = 5
     with open(output_file_name, 'w') as output_file:
-        save_path = os.path.join(args.model_dir, f'{feature_name}-model.pth')
-        # Split data
-        train_X, valid_X, test_X, train_Y, valid_Y, test_Y = load_train_valid_test(ds)
-        logger.info('=' * 100)
+        for i in range(n_folds):
+            logger.info(f'Fold: {i}')
+            save_path = os.path.join(args.model_dir, f'{feature_name}-model-{i}.pth')
+            # Split data
+            train_X, valid_X, test_X, train_Y, valid_Y, test_Y = load_train_valid_test(ds, i)
+            logger.info('=' * 100)
 
-        model.train(train_X, train_Y, valid_X, valid_Y, test_X, test_Y, save_path)
-        results = model.evaluate(test_X, test_Y)
-        print('Test:', results['accuracy'], results['precision'], results['recall'], results['f1'], flush=True,
-              file=output_file)
-    pass
+            model.train(train_X, train_Y, valid_X, valid_Y, test_X, test_Y, save_path)
+            results = model.evaluate(test_X, test_Y)
+            print('Test:', results['accuracy'], results['precision'], results['recall'], results['f1'], flush=True,
+                  file=output_file)
