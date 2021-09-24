@@ -143,106 +143,105 @@ def main():
     logger.info(f'reading inputs...')
     raw_code_input = read_input(cfiles)
     if args.mode == 'gen':
-        func_it = enumerate(raw_code_input)
-
-        # func_it = df.iterrows()
-        if args.slice is not None:
-            begin, end = args.slice.split(':')
-            begin, end = int(begin), int(end)
-            func_it = itertools.islice(func_it, begin, end)
-
-        shard_len = args.shard_len
-
-        logger.info('nproc: %d', nproc)
-
-        def save_shard(data):
-            if len(data) > 0 and not args.no_save:
-                _, new_shard = get_shards()
-                with open(new_shard, 'wb') as f:
-                    pickle.dump(data, f)
-
-        new_functions = []
-        with multiprocessing.Pool(nproc) as p:
-            with tqdm.tqdm(total=total) as pbar:
-                # For very long iterables using a large value for chunksize can make the job complete
-                # much faster than using the default value of 1.
-                for new_func in p.imap_unordered(do_one, func_it, args.chunk):
-                    new_functions.append(new_func)
-                    pbar.update(1)
-                    if len(new_functions) >= shard_len:
-                        save_shard(new_functions)
-                        new_functions = []
-                save_shard(new_functions)
+        generate(raw_code_input, total)
     elif args.mode == 'diag':
+        diag(cfiles)
 
-        new_functions = []
 
-        old_shards, _ = get_shards()
-        logger.info('%d shards', len(old_shards))
-        for shard in old_shards:
-            with open(shard, 'rb') as f:
-                shard_new_functions = pickle.load(f)
-                logger.info('%d functions in shard %s', len(shard_new_functions), shard)
-                new_functions.extend(shard_new_functions)
-        logger.info('%d functions total', len(new_functions))
-        if len(new_functions) == 0:
-            logger.error('0 functions. Quitting.')
-            exit(1)
+def generate(raw_code_input, total):
+    func_it = enumerate(raw_code_input)
+    # func_it = df.iterrows()
+    if args.slice is not None:
+        begin, end = args.slice.split(':')
+        begin, end = int(begin), int(end)
+        func_it = itertools.islice(func_it, begin, end)
+    shard_len = args.shard_len
+    logger.info('nproc: %d', nproc)
 
-        function_paths = list(cfiles)
+    def save_shard(data):
+        if len(data) > 0 and not args.no_save:
+            _, new_shard = get_shards()
+            with open(new_shard, 'wb') as f:
+                pickle.dump(data, f)
 
-        showed = 0
-        show_n_programs = 0
+    new_functions = []
+    with multiprocessing.Pool(nproc) as p:
+        with tqdm.tqdm(total=total) as pbar:
+            # For very long iterables using a large value for chunksize can make the job complete
+            # much faster than using the default value of 1.
+            for new_func in p.imap_unordered(do_one, func_it, args.chunk):
+                new_functions.append(new_func)
+                pbar.update(1)
+                if len(new_functions) >= shard_len:
+                    save_shard(new_functions)
+                    new_functions = []
+            save_shard(new_functions)
 
-        logger.info('counting diffs...')
-        applied_counts = defaultdict(int)  # Count of how many programs had a transformation applied
-        num_applied = []  # Number of transformations applied to each program
-        num_lines = []  # Number of (non-blank) lines in each program's code
-        num_blank_lines = []  # Number of (non-blank) lines in each program's code
-        num_changed_lines = []  # Number of changed lines in each program's code
-        total_switches = 0  # Number of programs containing "switch"
-        total_loops = 0  # Number of programs containing "for"
-        for i, filename, new_code, applied in tqdm.tqdm(new_functions):
-            with open(function_paths[i]) as f:
-                old_code = f.read()
-            old_lines = old_code.splitlines(keepends=True)
-            new_lines = new_code.splitlines(keepends=True)
-            diff = difflib.ndiff(old_lines, new_lines)
-            for a in applied:
-                applied_counts[a] += 1
-            num_applied.append(len(applied))
-            num_changed_lines.append(len([line for line in diff if line[:2] in ('- ', '+ ')]))
-            num_lines.append(len([line for line in old_lines if not line.isspace()]))
-            num_blank_lines.append(len([line for line in old_lines if line.isspace()]))
 
-            if 'switch' in old_code:
-                total_switches += 1
-            if 'for' in old_code:
-                total_loops += 1
+def diag(cfiles):
+    new_functions = []
+    old_shards, _ = get_shards()
+    logger.info('%d shards', len(old_shards))
+    for shard in old_shards:
+        with open(shard, 'rb') as f:
+            shard_new_functions = pickle.load(f)
+            logger.info('%d functions in shard %s', len(shard_new_functions), shard)
+            new_functions.extend(shard_new_functions)
+    logger.info('%d functions total', len(new_functions))
+    if len(new_functions) == 0:
+        logger.error('0 functions. Quitting.')
+        exit(1)
+    function_paths = list(cfiles)
+    showed = 0
+    show_n_programs = 0
+    logger.info('counting diffs...')
+    applied_counts = defaultdict(int)  # Count of how many programs had a transformation applied
+    num_applied = []  # Number of transformations applied to each program
+    num_lines = []  # Number of (non-blank) lines in each program's code
+    num_blank_lines = []  # Number of (non-blank) lines in each program's code
+    num_changed_lines = []  # Number of changed lines in each program's code
+    total_switches = 0  # Number of programs containing "switch"
+    total_loops = 0  # Number of programs containing "for"
+    for i, filename, new_code, applied in tqdm.tqdm(new_functions):
+        with open(function_paths[i]) as f:
+            old_code = f.read()
+        old_lines = old_code.splitlines(keepends=True)
+        new_lines = new_code.splitlines(keepends=True)
+        diff = difflib.ndiff(old_lines, new_lines)
+        for a in applied:
+            applied_counts[a] += 1
+        num_applied.append(len(applied))
+        num_changed_lines.append(len([line for line in diff if line[:2] in ('- ', '+ ')]))
+        num_lines.append(len([line for line in old_lines if not line.isspace()]))
+        num_blank_lines.append(len([line for line in old_lines if line.isspace()]))
 
-            if showed < show_n_programs:
-                print(f'Applied: {applied}')
-                print(''.join(difflib.unified_diff(old_lines, new_lines, fromfile=filename, tofile=filename)))
-                showed += 1
+        if 'switch' in old_code:
+            total_switches += 1
+        if 'for' in old_code:
+            total_loops += 1
 
-            del old_code
-            del old_lines
-            del new_lines
+        if showed < show_n_programs:
+            print(f'Applied: {applied}')
+            print(''.join(difflib.unified_diff(old_lines, new_lines, fromfile=filename, tofile=filename)))
+            showed += 1
 
-        for print_function in (logger.info, print):
-            # averages
-            print_function(f'Average # lines in program: {sum(num_lines) / len(new_functions):.2f}')
-            print_function(f'Average # blank lines: {sum(num_blank_lines) / len(new_functions):.2f}')
-            print_function(f'# programs with switch: {total_switches}')
-            print_function(f'# programs with for loop: {total_loops}')
+        del old_code
+        del old_lines
+        del new_lines
+    for print_function in (logger.info, print):
+        # averages
+        print_function(f'Average # lines in program: {sum(num_lines) / len(new_functions):.2f}')
+        print_function(f'Average # blank lines: {sum(num_blank_lines) / len(new_functions):.2f}')
+        print_function(f'# programs with switch: {total_switches}')
+        print_function(f'# programs with for loop: {total_loops}')
 
-            print_function(f'Average # changed lines: {sum(num_changed_lines) / len(new_functions):.2f}')
-            print_function(f'Average # transformations applied: {sum(num_applied) / len(new_functions):.2f}')
-            # totals
-            for transform in sorted(all_refactorings, key=lambda r: r.__name__):
-                print_function(f'{transform.__name__}: {applied_counts[transform.__name__]}')
-            for v in set(num_applied):
-                print_function(f'{v} transformations applied: {len([x for x in num_applied if x == v])}')
+        print_function(f'Average # changed lines: {sum(num_changed_lines) / len(new_functions):.2f}')
+        print_function(f'Average # transformations applied: {sum(num_applied) / len(new_functions):.2f}')
+        # totals
+        for transform in sorted(all_refactorings, key=lambda r: r.__name__):
+            print_function(f'{transform.__name__}: {applied_counts[transform.__name__]}')
+        for v in set(num_applied):
+            print_function(f'{v} transformations applied: {len([x for x in num_applied if x == v])}')
 
 
 if __name__ == '__main__':
