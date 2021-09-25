@@ -18,6 +18,7 @@ import tqdm as tqdm
 
 from cfactor import refactorings
 from data_processing.create_ggnn_input import read_input, get_input_files
+from data_processing import add_refactored_code
 import random
 
 import logging
@@ -26,64 +27,9 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d
                     datefmt='%Y-%m-%d:%H:%M:%S',
                     level=logging.INFO)
 logger = logging.getLogger()
-# logging.getLogger().addHandler(logging.StreamHandler())
-
-parser = argparse.ArgumentParser()
-parser.add_argument('-i', "--input_dir", help="Input source code files", default='./data/chrome_debian')
-parser.add_argument('-o', "--output_dir", help="Output refactored source code files", default='./refactored_code')
-parser.add_argument('--nproc', default='detect')
-parser.add_argument('--mode', default='gen')
-parser.add_argument('--slice', default=None)
-parser.add_argument('--test', default=None, type=int)
-parser.add_argument('--shard-len', default=5000, type=int)
-parser.add_argument('--chunk', default=10, type=int)
-parser.add_argument('--style', nargs='+', default=['one_of_each'])
-parser.add_argument('--seed', default=0, type=int)
-parser.add_argument('--shuffle_refactorings', action='store_true')
-parser.add_argument('--remainder', action='store_true')
-parser.add_argument('--no-save', action='store_true')
-parser.add_argument('--clean', action='store_true')
-parser.add_argument('--no-new-names', action='store_true')
-args = parser.parse_args()
-
-style_args = {
-    'one_of_each': 0,
-    'k_random': 1,
-    'threshold': 2,
-}
-args.style_type = args.style.pop(0)
-assert args.style_type in style_args, f'unknown option --style {args.style[0]}'
-assert len(args.style) == style_args[args.style_type], f'expected {style_args[args.style_type]} args for --style {args.style_type}, got {len(args.style)}'
-
-proc = subprocess.run('nproc', capture_output=True)
-max_nproc = int(proc.stdout)
-if args.nproc == 'detect':
-    nproc = max_nproc - 1
-else:
-    nproc = int(args.nproc)
-    assert nproc <= max_nproc
-
-args.output_dir = Path(args.output_dir)
-if not args.output_dir.exists():
-    args.output_dir.mkdir(parents=True)
-logging.getLogger().addHandler(logging.FileHandler(str(args.output_dir / f'refactor_reveal-{args.mode}.log')))
-
-random.seed(args.seed)
-
-if args.no_new_names:
-    all_refactorings = list(refactorings.refactorings_without_new_names)
-else:
-    all_refactorings = list(refactorings.all_refactorings)
-if args.shuffle_refactorings:
-    random.shuffle(all_refactorings)
-
-logging.info(f'random seed: {args.seed}')
-logging.info(f'shuffle refactorings: {args.shuffle_refactorings} {[r.__name__ for r in all_refactorings]}')
-logging.info(f'transformation style: {args.style_type} {args.style}')
-logging.info(f'nproc: {nproc}/{max_nproc}')
 
 def do_one(t):
-    idx, fn = t
+    (idx, fn), args = t
     try:
         project = refactorings.TransformationProject(
             fn["file_name"], fn["code"],
@@ -102,33 +48,76 @@ def do_one(t):
         pass
 
 
-def filter_functions(df):
-    already_done_indices = set()
-    existing, _ = get_shards()
-    for shard in existing:
-        with open(shard, 'rb') as f:
-            shard = pickle.load(f)
-            for r in shard:
-                already_done_indices.add(r[0])
-    df = df.drop(index=already_done_indices)
-    return df
-
-
-def get_shards():
+def get_shards(output_dir):
     existing_shards = []
     shard_idx = 0
-    shard_filename = args.output_dir / f'new_functions.pkl.shard{shard_idx}'
+    shard_filename = output_dir / f'new_functions.pkl.shard{shard_idx}'
     while shard_filename.exists():
         existing_shards.append(shard_filename)
         shard_idx += 1
-        shard_filename = args.output_dir / f'new_functions.pkl.shard{shard_idx}'
+        shard_filename = output_dir / f'new_functions.pkl.shard{shard_idx}'
     new_shard = shard_filename
     return existing_shards, new_shard
 
 
-def main():
+def main(cmd_args=None):
+    # logging.getLogger().addHandler(logging.StreamHandler())
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', "--input_dir", help="Input source code files", default='./data/chrome_debian')
+    parser.add_argument('-o', "--output_dir", help="Output refactored source code files", default='./refactored_code')
+    parser.add_argument('--nproc', default='detect')
+    parser.add_argument('--mode', default='gen')
+    parser.add_argument('--slice', default=None)
+    parser.add_argument('--test', default=None, type=int)
+    parser.add_argument('--shard-len', default=5000, type=int)
+    parser.add_argument('--chunk', default=10, type=int)
+    parser.add_argument('--style', nargs='+', default=['one_of_each'])
+    parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument('--shuffle_refactorings', action='store_true')
+    parser.add_argument('--remainder', action='store_true')
+    parser.add_argument('--no-save', action='store_true')
+    parser.add_argument('--clean', action='store_true')
+    parser.add_argument('--no-new-names', action='store_true')
+    args = parser.parse_args(cmd_args)
+
+    style_args = {
+        'one_of_each': 0,
+        'k_random': 1,
+        'threshold': 2,
+    }
+    args.style_type = args.style.pop(0)
+    assert args.style_type in style_args, f'unknown option --style {args.style[0]}'
+    assert len(args.style) == style_args[args.style_type], f'expected {style_args[args.style_type]} args for --style {args.style_type}, got {len(args.style)}'
+
+    proc = subprocess.run('nproc', capture_output=True)
+    max_nproc = int(proc.stdout)
+    if args.nproc == 'detect':
+        nproc = max_nproc - 1
+    else:
+        nproc = int(args.nproc)
+        assert nproc <= max_nproc
+
+    args.output_dir = Path(args.output_dir)
+    if not args.output_dir.exists():
+        args.output_dir.mkdir(parents=True)
+    logging.getLogger().addHandler(logging.FileHandler(str(args.output_dir / f'refactor_reveal-{args.mode}.log')))
+
+    random.seed(args.seed)
+
+    if args.no_new_names:
+        all_refactorings = list(refactorings.refactorings_without_new_names)
+    else:
+        all_refactorings = list(refactorings.all_refactorings)
+    if args.shuffle_refactorings:
+        random.shuffle(all_refactorings)
+
+    logging.info(f'random seed: {args.seed}')
+    logging.info(f'shuffle refactorings: {args.shuffle_refactorings} {[r.__name__ for r in all_refactorings]}')
+    logging.info(f'transformation style: {args.style_type} {args.style}')
+    logging.info(f'nproc: {nproc}/{max_nproc}')
     if args.clean:
-        existing_shards, _ = get_shards()
+        existing_shards, _ = get_shards(args.output_dir)
         logger.info(f'cleaning shards {[str(s) for s in existing_shards]}')
         for s in existing_shards:
             s.unlink()
@@ -143,12 +132,12 @@ def main():
     logger.info(f'reading inputs...')
     raw_code_input = read_input(cfiles)
     if args.mode == 'gen':
-        generate(raw_code_input, total)
+        generate(raw_code_input, total, args, nproc)
     elif args.mode == 'diag':
-        diag(cfiles)
+        diag(cfiles, args.output_dir, all_refactorings)
 
 
-def generate(raw_code_input, total):
+def generate(raw_code_input, total, args, nproc):
     func_it = enumerate(raw_code_input)
     # func_it = df.iterrows()
     if args.slice is not None:
@@ -160,7 +149,7 @@ def generate(raw_code_input, total):
 
     def save_shard(data):
         if len(data) > 0 and not args.no_save:
-            _, new_shard = get_shards()
+            _, new_shard = get_shards(args.output_dir)
             with open(new_shard, 'wb') as f:
                 pickle.dump(data, f)
 
@@ -169,7 +158,7 @@ def generate(raw_code_input, total):
         with tqdm.tqdm(total=total) as pbar:
             # For very long iterables using a large value for chunksize can make the job complete
             # much faster than using the default value of 1.
-            for new_func in p.imap_unordered(do_one, func_it, args.chunk):
+            for new_func in p.imap_unordered(do_one, ((t, args) for t in func_it), args.chunk):
                 new_functions.append(new_func)
                 pbar.update(1)
                 if len(new_functions) >= shard_len:
@@ -178,18 +167,10 @@ def generate(raw_code_input, total):
             save_shard(new_functions)
 
 
-def diag(cfiles):
-    new_functions = []
-    old_shards, _ = get_shards()
-    logger.info('%d shards', len(old_shards))
-    for shard in old_shards:
-        with open(shard, 'rb') as f:
-            shard_new_functions = pickle.load(f)
-            logger.info('%d functions in shard %s', len(shard_new_functions), shard)
-            new_functions.extend(shard_new_functions)
-    logger.info('%d functions total', len(new_functions))
+def diag(cfiles, output_dir, all_refactorings):
+    new_functions = load_old_functions(output_dir)
     if len(new_functions) == 0:
-        logger.error('0 functions. Quitting.')
+        logger.error('No refactored functions. Quitting.')
         exit(1)
     function_paths = list(cfiles)
     showed = 0
@@ -242,6 +223,19 @@ def diag(cfiles):
             print_function(f'{transform.__name__}: {applied_counts[transform.__name__]}')
         for v in set(num_applied):
             print_function(f'{v} transformations applied: {len([x for x in num_applied if x == v])}')
+
+
+def load_old_functions(output_dir):
+    new_functions = []
+    old_shards, _ = get_shards(output_dir)
+    logger.info('%d shards', len(old_shards))
+    for shard in old_shards:
+        with open(shard, 'rb') as f:
+            shard_new_functions = pickle.load(f)
+            logger.info('%d functions in shard %s', len(shard_new_functions), shard)
+            new_functions.extend(shard_new_functions)
+    logger.info('%d functions total', len(new_functions))
+    return new_functions
 
 
 if __name__ == '__main__':

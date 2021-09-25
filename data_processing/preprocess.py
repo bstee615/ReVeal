@@ -170,14 +170,14 @@ def preprocess(input_dir, preprocessed_dir, shard_len, wv_path, portion='full_gr
     return all_output_data
 
 
-def main():
+def main(cmd_args=None):
     parser = argparse.ArgumentParser()
     # parser.add_argument('-p', '--project', help='name of project for differentiating files',
     #                     choices=['chrome_debian', 'devign'], required=True)
     parser.add_argument('-i', '--input', help='input directory, containing <name>/{raw_code,parsed}', required=True, nargs='+')
     parser.add_argument('-o', '--output', help='output and intermediate processing directory', required=True)
     parser.add_argument('--shard_len', help='shard length', type=int, default=5000)
-    args = parser.parse_args()
+    args = parser.parse_args(cmd_args)
 
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -215,10 +215,6 @@ def main():
         json.dump(info, f, indent=2)
 
     split_and_save(all_preprocessed_data, output_dir)
-
-    sys.path.append('Devign')
-    from Devign.main import main
-    main(raw_args=f'--input_dir {output_dir}')
 
 
 if __name__ == '__main__':
