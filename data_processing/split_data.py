@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def split_and_save(data, output_dir, splits=(0.7, 0.1, 0.2)):
+def save_dataset(data, output_dir, splits=(0.7, 0.1, 0.2)):
 
     assert sum(splits) == 1.0, 'Splits must sum up to 1.0'
 

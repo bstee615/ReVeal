@@ -38,40 +38,10 @@ edgeType_full = {
     'IS_FUNCTION_OF_CFG': 12
 }
 
-# We currently consider 12 types of edges mentioned in ICST paper
-edgeType_control = {
-    'FLOWS_TO': 3,  # Control Flow
-    'CONTROLS': 7,  # Control Dependency edge
-}
 
-edgeType_data = {
-    'DEF': 4,
-    'USE': 5,
-    'REACHES': 6,
-}
-
-edgeType_control_data = {
-    'DEF': 4,
-    'USE': 5,
-    'REACHES': 6,
-    'FLOWS_TO': 3,  # Control Flow
-    'CONTROLS': 7,  # Control Dependency edge
-}
-
-edgeType = {
-    "full_graph": edgeType_full,
-    "cgraph": edgeType_control,
-    "dgraph": edgeType_data,
-    "cdgraph": edgeType_control_data,
-}
-
-
-def get_ggnn_graph(nodeCSV, edgeCSV, target, wv, portion):
-    edge_type_map = edgeType[portion]
-    if portion == 'full_graph':
-        cfg_only = False
-    else:
-        cfg_only = True
+def get_ggnn_graph(nodeCSV, edgeCSV, target, wv):
+    edge_type_map = edgeType_full
+    cfg_only = False
 
     gInput = dict()
     gInput["targets"] = list()

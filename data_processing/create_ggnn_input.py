@@ -8,12 +8,12 @@ logger = logging.getLogger(__name__)
 
 def raw_code2dict(file_path):
     file_name = file_path.name
-    with open(file_path, encoding='utf-8', errors='ignore') as f:
-        code = f.read()
+    # with open(file_path, encoding='utf-8', errors='ignore') as f:
+    #     code = f.read()
     output = {
         'file_name': file_name,
         'label': int(file_name[-3]),
-        'code': code
+        # 'code': code
     }
     return output
 
