@@ -13,12 +13,10 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 
-import pandas as pd
 import tqdm as tqdm
 
 from cfactor import refactorings
 from data_processing.create_ggnn_input import read_input, get_input_files
-from data_processing import add_refactored_code
 import random
 
 import logging
@@ -29,7 +27,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d
 logger = logging.getLogger()
 
 def do_one(t):
-    (idx, fn), args = t
+    (idx, fn), (args, all_refactorings) = t
     try:
         project = refactorings.TransformationProject(
             fn["file_name"], fn["code"],
@@ -64,7 +62,7 @@ def main(cmd_args=None):
     # logging.getLogger().addHandler(logging.StreamHandler())
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', "--input_dir", help="Input source code files", default='./data/chrome_debian')
+    parser.add_argument('-i', "--input_dir", help="Input source code files")
     parser.add_argument('-o', "--output_dir", help="Output refactored source code files", default='./refactored_code')
     parser.add_argument('--nproc', default='detect')
     parser.add_argument('--mode', default='gen')
@@ -78,6 +76,7 @@ def main(cmd_args=None):
     parser.add_argument('--remainder', action='store_true')
     parser.add_argument('--no-save', action='store_true')
     parser.add_argument('--clean', action='store_true')
+    parser.add_argument('--buggy_only', action='store_true')
     parser.add_argument('--no-new-names', action='store_true')
     args = parser.parse_args(cmd_args)
 
@@ -132,12 +131,12 @@ def main(cmd_args=None):
     logger.info(f'reading inputs...')
     raw_code_input = read_input(cfiles)
     if args.mode == 'gen':
-        generate(raw_code_input, total, args, nproc)
+        generate(raw_code_input, total, args, nproc, all_refactorings)
     elif args.mode == 'diag':
         diag(cfiles, args.output_dir, all_refactorings)
 
 
-def generate(raw_code_input, total, args, nproc):
+def generate(raw_code_input, total, args, nproc, all_refactorings):
     func_it = enumerate(raw_code_input)
     # func_it = df.iterrows()
     if args.slice is not None:
@@ -146,6 +145,9 @@ def generate(raw_code_input, total, args, nproc):
         func_it = itertools.islice(func_it, begin, end)
     shard_len = args.shard_len
     logger.info('nproc: %d', nproc)
+
+    if args.buggy_only:
+        func_it = (f for f in func_it if f[1]["label"] == 1)
 
     def save_shard(data):
         if len(data) > 0 and not args.no_save:
@@ -158,7 +160,7 @@ def generate(raw_code_input, total, args, nproc):
         with tqdm.tqdm(total=total) as pbar:
             # For very long iterables using a large value for chunksize can make the job complete
             # much faster than using the default value of 1.
-            for new_func in p.imap_unordered(do_one, ((t, args) for t in func_it), args.chunk):
+            for new_func in p.imap_unordered(do_one, ((t, (args, all_refactorings)) for t in func_it), args.chunk):
                 new_functions.append(new_func)
                 pbar.update(1)
                 if len(new_functions) >= shard_len:
@@ -186,43 +188,54 @@ def diag(cfiles, output_dir, all_refactorings):
     for i, filename, new_code, applied in tqdm.tqdm(new_functions):
         with open(function_paths[i]) as f:
             old_code = f.read()
-        old_lines = old_code.splitlines(keepends=True)
-        new_lines = new_code.splitlines(keepends=True)
-        diff = difflib.ndiff(old_lines, new_lines)
-        for a in applied:
+        # old_lines = old_code.splitlines(keepends=True)
+        # new_lines = new_code.splitlines(keepends=True)
+        # diff = difflib.ndiff(old_lines, new_lines)
+        # print(applied)
+        for a in set(applied):
             applied_counts[a] += 1
-        num_applied.append(len(applied))
-        num_changed_lines.append(len([line for line in diff if line[:2] in ('- ', '+ ')]))
-        num_lines.append(len([line for line in old_lines if not line.isspace()]))
-        num_blank_lines.append(len([line for line in old_lines if line.isspace()]))
+        # num_applied.append(len(applied))
+        # num_changed_lines.append(len([line for line in diff if line[:2] in ('- ', '+ ')]))
+        # num_lines.append(len([line for line in old_lines if not line.isspace()]))
+        # num_blank_lines.append(len([line for line in old_lines if line.isspace()]))
 
         if 'switch' in old_code:
             total_switches += 1
         if 'for' in old_code:
             total_loops += 1
+        # if re.search(r'switch\s*\(', old_code, flags=re.MULTILINE):
+        #     total_switches += 1
+        # if re.search(r'for\s*\(', old_code, flags=re.MULTILINE):
+        #     total_loops += 1
 
-        if showed < show_n_programs:
-            print(f'Applied: {applied}')
-            print(''.join(difflib.unified_diff(old_lines, new_lines, fromfile=filename, tofile=filename)))
-            showed += 1
+        # if showed < show_n_programs:
+        #     print(f'Applied: {applied}')
+        #     print(''.join(difflib.unified_diff(old_lines, new_lines, fromfile=filename, tofile=filename)))
+        #     showed += 1
 
-        del old_code
-        del old_lines
-        del new_lines
-    for print_function in (logger.info, print):
+        # del old_code
+        # del old_lines
+        # del new_lines
+    # for print_function in (logger.info, print):
         # averages
-        print_function(f'Average # lines in program: {sum(num_lines) / len(new_functions):.2f}')
-        print_function(f'Average # blank lines: {sum(num_blank_lines) / len(new_functions):.2f}')
-        print_function(f'# programs with switch: {total_switches}')
-        print_function(f'# programs with for loop: {total_loops}')
-
-        print_function(f'Average # changed lines: {sum(num_changed_lines) / len(new_functions):.2f}')
-        print_function(f'Average # transformations applied: {sum(num_applied) / len(new_functions):.2f}')
-        # totals
-        for transform in sorted(all_refactorings, key=lambda r: r.__name__):
-            print_function(f'{transform.__name__}: {applied_counts[transform.__name__]}')
-        for v in set(num_applied):
-            print_function(f'{v} transformations applied: {len([x for x in num_applied if x == v])}')
+        # print_function(f'Average # lines in program: {sum(num_lines) / len(new_functions):.2f}')
+        # print_function(f'Average # blank lines: {sum(num_blank_lines) / len(new_functions):.2f}')
+        # print_function(f'# programs with switch: {total_switches}')
+        # print_function(f'# programs with for loop: {total_loops}')
+        #
+        # print_function(f'Average # changed lines: {sum(num_changed_lines) / len(new_functions):.2f}')
+        # print_function(f'Average # transformations applied: {sum(num_applied) / len(new_functions):.2f}')
+        # # totals
+        # for transform in sorted(all_refactorings, key=lambda r: r.__name__):
+        #     print_function(f'{transform.__name__}: {applied_counts[transform.__name__]}')
+        # for v in set(num_applied):
+        #     print_function(f'{v} transformations applied: {len([x for x in num_applied if x == v])}')
+    # print('Transforms:', applied_counts)
+    print('Total programs:', len(new_functions))
+    print(f'# programs with switch: {total_switches}')
+    print(f'# programs with for loop: {total_loops}')
+    for v in sorted(set(applied_counts)):
+        print(f'{v} transformations applied: {applied_counts[v]}')
 
 
 def load_old_functions(output_dir):
