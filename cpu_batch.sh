@@ -2,7 +2,10 @@
 #SBATCH -t8:00:00
 #SBATCH -n 16
 #SBATCH -p interactive
+#SBATCH --exclude=legion-[1-8]
+#SBATCH --mem 32GB
+#SBATCH --output="sbatch-%j.out" # job standard output file (%j replaced by job id)
 
-module load miniconda3
-source activate $PWD/../env
-bash data_prep.sh -i "$PWD/data_refactored/chrome_debian/" -o "$PWD/out_refactored/" -n chrome_debian
+source load_all.sh
+echo "$@"
+$@

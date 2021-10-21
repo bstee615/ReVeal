@@ -10,12 +10,6 @@
 #SBATCH --mail-type=FAIL
 #SBATCH --output="sbatch-%j.out" # job standard output file (%j replaced by job id)
 
-envdir="$PWD/../env"
-module load miniconda3
-source activate ReVeal
-#bash full_run.sh -i "$PWD/data/chrome_debian/" -o "$PWD/out/" -n chrome_debian
-#bash -x wip.sh -i "$PWD/data/chrome_debian/" -o "$PWD/out/" -n chrome_debian
-# bash -x partial_data.sh -i "$PWD/data/chrome_debian/" -o "$PWD/out/" -n chrome_debian
-# bash -x data_prep.sh -i "$PWD/data/chrome_debian/" -o "$PWD/out_refactored/" -n chrome_debian
+source load_all.sh
 
 $@
