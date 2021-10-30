@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
+import os
 
+import re
 
 import argparse
 import difflib
@@ -89,13 +91,17 @@ def main(cmd_args=None):
     assert args.style_type in style_args, f'unknown option --style {args.style[0]}'
     assert len(args.style) == style_args[args.style_type], f'expected {style_args[args.style_type]} args for --style {args.style_type}, got {len(args.style)}'
 
-    proc = subprocess.run('nproc', capture_output=True)
-    max_nproc = int(proc.stdout)
-    if args.nproc == 'detect':
-        nproc = max_nproc - 1
-    else:
-        nproc = int(args.nproc)
-        assert nproc <= max_nproc
+    try:
+        proc = subprocess.run('nproc', capture_output=True)
+        max_nproc = int(proc.stdout)
+        if args.nproc == 'detect':
+            nproc = max_nproc - 1
+        else:
+            nproc = int(args.nproc)
+            assert nproc <= max_nproc
+    except Exception:
+        nproc = 8
+        max_nproc = 8
 
     args.output_dir = Path(args.output_dir)
     if not args.output_dir.exists():
@@ -129,7 +135,7 @@ def main(cmd_args=None):
         logger.info('cutting to %d samples', args.test)
         cfiles = itertools.islice(cfiles, 0, args.test)
     logger.info(f'reading inputs...')
-    raw_code_input = read_input(cfiles)
+    raw_code_input = read_input(cfiles, read_code=True)
     if args.mode == 'gen':
         generate(raw_code_input, total, args, nproc, all_refactorings)
     elif args.mode == 'diag':
@@ -176,42 +182,69 @@ def diag(cfiles, output_dir, all_refactorings):
         exit(1)
     function_paths = list(cfiles)
     showed = 0
-    show_n_programs = 0
+    show_n_programs = 3
     logger.info('counting diffs...')
     applied_counts = defaultdict(int)  # Count of how many programs had a transformation applied
     num_applied = []  # Number of transformations applied to each program
-    num_lines = []  # Number of (non-blank) lines in each program's code
-    num_blank_lines = []  # Number of (non-blank) lines in each program's code
+    num_blank_lines = []  # Number of blank lines in each program's code
+    num_lines = []  # Number of lines in each program's code
     num_changed_lines = []  # Number of changed lines in each program's code
+    percent_changed_lines = []  # Percent of lines changed in each program's code
     total_switches = 0  # Number of programs containing "switch"
     total_loops = 0  # Number of programs containing "for"
     for i, filename, new_code, applied in tqdm.tqdm(new_functions):
-        with open(function_paths[i]) as f:
+        with open(next(fp for fp in function_paths if fp.name == filename)) as f:
             old_code = f.read()
-        # old_lines = old_code.splitlines(keepends=True)
-        # new_lines = new_code.splitlines(keepends=True)
-        # diff = difflib.ndiff(old_lines, new_lines)
         # print(applied)
         for a in set(applied):
             applied_counts[a] += 1
         # num_applied.append(len(applied))
-        # num_changed_lines.append(len([line for line in diff if line[:2] in ('- ', '+ ')]))
-        # num_lines.append(len([line for line in old_lines if not line.isspace()]))
-        # num_blank_lines.append(len([line for line in old_lines if line.isspace()]))
+        # TODO: This needs to use unified_diff or something that merges modified lines
+        # prog_num_changed_lines = len([line for line in diff if line[:2] in ('- ', '+ ')])
+        tmp1, tmp2 = tempfile.mktemp(), tempfile.mktemp()
+        try:
+            with open(tmp1, 'w') as f:
+                f.write(old_code)
+            with open(tmp2, 'w') as f:
+                f.write(new_code)
+            wc_str = subprocess.check_output(f'sdiff --suppress-common-lines {tmp1} {tmp2} | wc -l', shell=True)
+            prog_num_changed_lines = int(wc_str)
+        finally:
+            if os.path.exists(tmp1):
+                os.unlink(tmp1)
+            if os.path.exists(tmp2):
+                os.unlink(tmp2)
 
-        if 'switch' in old_code:
-            total_switches += 1
-        if 'for' in old_code:
-            total_loops += 1
-        # if re.search(r'switch\s*\(', old_code, flags=re.MULTILINE):
+        old_lines = old_code.splitlines(keepends=True)
+        # new_lines = new_code.splitlines(keepends=True)
+        # diff = difflib.ndiff(old_lines, new_lines)
+        # diff = difflib.unified_diff(old_lines, new_lines)
+        # prog_num_changed_lines = len([line for line in diff if line[0] in ('-', '+') and line[:3] not in ('---', '+++')])
+        prog_num_lines = len([line for line in old_lines])
+        num_changed_lines.append(prog_num_changed_lines)
+        num_lines.append(prog_num_lines)
+        num_blank_lines.append(len([line for line in old_lines if line.isspace()]))
+
+        prog_percent_changed_lines = prog_num_changed_lines / prog_num_lines
+        percent_changed_lines.append(prog_percent_changed_lines)
+
+        # if 'switch' in old_code:
         #     total_switches += 1
-        # if re.search(r'for\s*\(', old_code, flags=re.MULTILINE):
+        # if 'for' in old_code:
         #     total_loops += 1
+        if re.search(r'switch\s*\(', old_code, flags=re.MULTILINE):
+            total_switches += 1
+        if re.search(r'for\s*\(', old_code, flags=re.MULTILINE):
+            total_loops += 1
 
-        # if showed < show_n_programs:
-        #     print(f'Applied: {applied}')
-        #     print(''.join(difflib.unified_diff(old_lines, new_lines, fromfile=filename, tofile=filename)))
-        #     showed += 1
+        if showed < show_n_programs:
+            print('Filename:', filename)
+            print('Num lines:', prog_num_lines, 'Num changed:', prog_num_changed_lines)
+            print(f'Applied: {applied}')
+            print('Old code:', old_code)
+            print('New code:', new_code)
+            # print('Diff:', ''.join(difflib.unified_diff(old_lines, new_lines, fromfile=filename, tofile=filename)))
+            showed += 1
 
         # del old_code
         # del old_lines
@@ -231,11 +264,17 @@ def diag(cfiles, output_dir, all_refactorings):
         # for v in set(num_applied):
         #     print_function(f'{v} transformations applied: {len([x for x in num_applied if x == v])}')
     # print('Transforms:', applied_counts)
-    print('Total programs:', len(new_functions))
-    print(f'# programs with switch: {total_switches}')
-    print(f'# programs with for loop: {total_loops}')
+    print('***** Total programs:', len(new_functions))
+    print(f'***** # programs with switch: {total_switches}')
+    print(f'***** # programs with for loop: {total_loops}')
     for v in sorted(set(applied_counts)):
-        print(f'{v} transformations applied: {applied_counts[v]}')
+        print(f'***** {v} transformations applied: {applied_counts[v]}')
+    print(f'***** Average # blank lines: {sum(num_blank_lines) / len(new_functions):.2f}')
+
+    print(f'***** Average # nonblank lines in program: {sum(num_lines) / len(new_functions):.2f}')
+    print(f'***** Average # changed lines: {sum(num_changed_lines) / len(new_functions):.2f}')
+    print(f'***** Average % changed lines (macro average): {sum(num_changed_lines) / sum(num_lines):.2f}')
+    print(f'***** Average % changed lines (micro average): {sum(percent_changed_lines) / len(new_functions):.2f}')
 
 
 def load_old_functions(output_dir):

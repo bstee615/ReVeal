@@ -62,8 +62,8 @@ def preprocess(input_dir, wv_path):
     # Prepare inputs
     code_dir = input_dir / 'raw_code'
     parsed_dir = input_dir / 'parsed'
-    assert code_dir.exists(), code_dir
-    assert parsed_dir.exists(), parsed_dir
+    assert code_dir.exists(), f'{code_dir} does not exist'
+    assert parsed_dir.exists(), f'{parsed_dir} does not exist'
 
     # Load previous progress
     all_output_data = []

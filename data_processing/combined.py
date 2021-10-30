@@ -1,69 +1,101 @@
-import sys
+import os
 
+import sys
 sys.path.append('Devign')
+
 import subprocess
 import argparse
 
-parser = argparse.ArgumentParser()
-# refactored_devign_noname_threshold0.5
-parser.add_argument("-n", "--name", help="Name of the run", required=True)
-parser.add_argument("-i", "--input_dir", help="Input dataset", required=True)
-# 'refactor_reveal', 'add_refactored_code', 'preprocess', 'Devign-preprocess', 'train'
-parser.add_argument("--stages", help="Stages to run", default=[], nargs='+')
-parser.add_argument("--preprocess_override", help="Refactored input directories for preprocess", default=[], nargs='+')
-args = parser.parse_args()
+from Devign import main as devign_main
+from data_processing import preprocess
+from data_processing import add_refactored_code
+from data_processing import refactor_reveal
 
-devign_source = args.input_dir
-refactored_output = f'out/{args.name}'
-preprocessed_output = f'data/{args.name}'
+from datetime import datetime
 
-print('Name:', args.name)
-print('Stages:', args.stages)
 
-current_stage = None
-try:
-    if 'refactor_reveal' in args.stages:
-        current_stage = 'refactor_reveal'
-        print('Stage:', current_stage)
-        from data_processing import refactor_reveal
-        refactor_args = ''
-        if 'noname' in args.name:
-            refactor_args += ' --no-new-names'
-        if 'threshold0.75' in args.name:
-            refactor_args += ' --style threshold 0.75 10'
-        if 'buggyonly' in args.name:
-            refactor_args += ' --buggy_only'
-        seed_arg = next((s for s in args.name.split('_') if 'seed' in s), None)
-        if seed_arg is not None:
-            refactor_args += ' --shuffle_refactorings --seed ' + seed_arg.split('-')[-1]
-        cmd = f'-i {devign_source} -o {refactored_output}{refactor_args}'
-        print('Running:', cmd)
-        refactor_reveal.main(cmd.split())
-    if 'add_refactored_code' in args.stages:
-        current_stage = 'add_refactored_code'
-        print('Stage:', current_stage)
-        from data_processing import add_refactored_code
-        add_refactored_code.main(f'--input_dir {refactored_output} --output_dir {refactored_output}'.split())
-    if 'preprocess' in args.stages:
-        current_stage = 'preprocess'
-        print('Stage:', current_stage)
-        from data_processing import preprocess
-        if args.preprocess_override:
-            preprocess_input = ' '.join(args.preprocess_override)
-        else:
-            preprocess_input = refactored_output
-        preprocess.main(f'--input {args.input_dir} {preprocess_input} --output {preprocessed_output}'.split())
-    if 'Devign-preprocess' in args.stages:
-        current_stage = 'Devign-preprocess'
-        print('Stage:', current_stage)
-        from Devign import main as devign_main
-        devign_main.main(f'--input_dir {preprocessed_output} --preprocess_only'.split())
-    if 'train' in args.stages:
-        current_stage = 'train'
-        print('Stage:', current_stage)
-        cmd = f'bash run_model.sh devign {preprocessed_output}'
-        print('Command:', cmd)
-        subprocess.check_call(cmd, shell=True)
-except Exception:
-    print('Errored stage:', current_stage)
-    raise
+def print_current_time():
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    print("Current Time =", current_time)
+
+default_stages = [
+    'refactor_reveal', 'add_refactored_code', 'preprocess', 'Devign-preprocess', 'train'
+]
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--options", help="Options for the run", nargs='*')
+    parser.add_argument("--input_dir", help="Input dataset", required=True)
+    parser.add_argument("--stages-to-skip", help="Stages to skip", choices=default_stages, nargs='*')
+    args = parser.parse_args()
+
+    if args.stages_to_skip is None:
+        stages_to_skip = []
+    else:
+        stages_to_skip = args.stages_to_skip
+    if args.options is None:
+        options = []
+    else:
+        options = args.options
+    input_dir = args.input_dir
+
+    name = '_'.join([os.path.basename(input_dir), *options])
+    output_dir = os.path.join('output', name)
+    os.makedirs(output_dir, exist_ok=True)
+    refactored_output = os.path.join(output_dir, 'refactored_pickle')
+    # add_refactored_code_output = os.path.join(output_dir, 'refactored_code')
+    preprocessed_output = os.path.join(output_dir, 'preprocessed_output')
+    stages = [stage for stage in default_stages if stage not in stages_to_skip]
+
+    print('Name:', name)
+    print('Stages to skip:', stages_to_skip)
+    print('Stages to run:', stages)
+
+    for stage in stages:
+        print('begin stage:', stage)
+        print_current_time()
+        try:
+            if stage == 'refactor_reveal':
+                refactor_args = []
+                if 'no-new-names' in options:
+                    refactor_args.append('--no-new-names')
+                if 'threshold' in options:
+                    threshold_value = options.find('threshold') + 1
+                    refactor_args.append(f'--style threshold {threshold_value} 10')
+                if 'buggonly' in options:
+                    refactor_args.append('--buggy_only')
+                if 'seed' in options:
+                    seed_value = options.find('seed') + 1
+                    refactor_args.append('--shuffle_refactorings')
+                    refactor_args.append(f'--seed {seed_value}')
+                cmd = f'-i {input_dir} -o {refactored_output} {" ".join(refactor_args)} --clean'
+                print('Command:', cmd)
+                refactor_reveal.main(cmd.split())
+            elif stage == 'add_refactored_code':
+                cmd = f'--input_dir {refactored_output} --output_dir {output_dir}'
+                print('Command:', cmd)
+                add_refactored_code.main(cmd.split())
+            elif stage == 'preprocess':
+                cmd = f'--input {input_dir} {output_dir} --output {preprocessed_output}'
+                print('Command:', cmd)
+                preprocess.main(cmd.split())
+            elif stage == 'Devign-preprocess':
+                cmd = f'--input_dir {preprocessed_output} --preprocess_only'
+                print('Command:', cmd)
+                devign_main.main(cmd.split())
+            elif stage == 'train':
+                cmd = f'bash run_model.sh devign {preprocessed_output}'
+                print('Command:', cmd)
+                subprocess.check_call(cmd, shell=True)
+            del cmd
+        except Exception:
+            print('Errored stage:', stage)
+            raise
+        finally:
+            print('end stage:', stage)
+            print_current_time()
+
+if __name__ == '__main__':
+    main()
