@@ -67,30 +67,12 @@ def preprocess(input_dir, wv_path):
     # Preprocess data
     input_data = read_input(files)
     output_data = []
-    # nproc = multiprocessing.cpu_count()-1
-    # nproc = 7
-    # logger.info(f'{nproc} processes')
-    # with multiprocessing.Pool(nproc) as pool:
     it = [(code_dir, parsed_dir, example, wv_model) for example in input_data]
-    #     it = pool.imap_unordered(load_graph, it, chunksize=25)
     it = (load_graph(example) for example in it)
     pbar = tqdm.tqdm(it, total=len(files))
     for graph in pbar:
         if graph is not None:
             output_data.append(graph)
-    # pbar = tqdm.tqdm(input_data, total=len(files))
-    # for d_i, example in enumerate(pbar):
-    #     if d_i % 100 == 0:
-    #         mem = psutil.virtual_memory()
-    #         pbar.write(f'Index {d_i} memory used: {bytes2human(mem.used)}/{bytes2human(mem.available)} average time: {pbar.avg_time}')
-    #     data_instance, file_name, graph_data = load_graph(code_dir, parsed_dir, example, wv_model)
-    #     if graph_data is None:
-    #         logger.debug(f'Skipping node ({file_name}) because graph_data is None')
-    #         output_data.append(data_instance)
-    #         continue
-    #     else:
-    #         data_instance.update(graph_data)
-    #         output_data.append(data_instance)
     return output_data
 
 
