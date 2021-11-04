@@ -1,5 +1,3 @@
-import os
-
 import argparse
 import json
 import logging
@@ -11,8 +9,6 @@ from gensim.models import Word2Vec
 
 from data_processing.create_ggnn_data import get_ggnn_graph
 from data_processing.create_ggnn_input import read_input, get_input_files
-from data_processing.extract_graph import get_graph
-from data_processing.extract_slices import get_slices
 from split_data import save_dataset
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -66,37 +62,57 @@ def preprocess(input_dir, wv_path):
     assert parsed_dir.exists(), f'{parsed_dir} does not exist'
 
     # Load previous progress
-    all_output_data = []
-    model = Word2Vec.load(str(wv_path))
+    wv_model = Word2Vec.load(str(wv_path))
 
     # Preprocess data
     input_data = read_input(files)
     output_data = []
-    for d in tqdm.tqdm(input_data, total=len(files)):
-        file_name = d["file_name"]
-        label = d["label"]
-        i = d["idx"]
+    # nproc = multiprocessing.cpu_count()-1
+    # nproc = 7
+    # logger.info(f'{nproc} processes')
+    # with multiprocessing.Pool(nproc) as pool:
+    it = [(code_dir, parsed_dir, example, wv_model) for example in input_data]
+    #     it = pool.imap_unordered(load_graph, it, chunksize=25)
+    it = (load_graph(example) for example in it)
+    pbar = tqdm.tqdm(it, total=len(files))
+    for graph in pbar:
+        if graph is not None:
+            output_data.append(graph)
+    # pbar = tqdm.tqdm(input_data, total=len(files))
+    # for d_i, example in enumerate(pbar):
+    #     if d_i % 100 == 0:
+    #         mem = psutil.virtual_memory()
+    #         pbar.write(f'Index {d_i} memory used: {bytes2human(mem.used)}/{bytes2human(mem.available)} average time: {pbar.avg_time}')
+    #     data_instance, file_name, graph_data = load_graph(code_dir, parsed_dir, example, wv_model)
+    #     if graph_data is None:
+    #         logger.debug(f'Skipping node ({file_name}) because graph_data is None')
+    #         output_data.append(data_instance)
+    #         continue
+    #     else:
+    #         data_instance.update(graph_data)
+    #         output_data.append(data_instance)
+    return output_data
 
-        # Sanity checks
-        assert file_name == file_name.strip()
-        assert label in (0, 1)
 
-        d['file_path'] = str(code_dir / file_name)
-
-        data_instance = dict(d)
-        output_data.append(data_instance)
-
-        # Load Joern output
-        nodes_file_path = parsed_dir / file_name / 'nodes.csv'
-        edges_file_path = parsed_dir / file_name / 'edges.csv'
-
-        # Graph data
-        graph_data = get_ggnn_graph(nodes_file_path, edges_file_path, label, model)
-        if graph_data is None:
-            logger.debug(f'Skipping node {i} ({file_name}) because graph_data is None')
-            continue
-        data_instance.update(graph_data)
-    return all_output_data
+def load_graph(items):
+    code_dir, parsed_dir, example, wv_model = items
+    file_name = example["file_name"]
+    label = example["label"]
+    # Sanity checks
+    assert file_name == file_name.strip()
+    assert label in (0, 1)
+    example['file_path'] = str(code_dir / file_name)
+    # Load Joern output
+    nodes_file_path = parsed_dir / file_name / 'nodes.csv'
+    edges_file_path = parsed_dir / file_name / 'edges.csv'
+    # Graph data
+    graph_data = get_ggnn_graph(nodes_file_path, edges_file_path, label, wv_model)
+    if graph_data is None:
+        logger.debug(f'Skipping node with filename ({file_name}) because graph_data is None')
+        return None
+    else:
+        example.update(graph_data)
+    return example
 
 
 def main(cmd_args=None):

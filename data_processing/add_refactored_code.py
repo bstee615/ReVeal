@@ -61,8 +61,6 @@ def run_joern(joern_dir, src_dir, src_files=None):
                 status["succeeded"] += 1
             elif 'warning' in line:
                 status["warnings"] += 1
-            else:
-                pbar.write(line)
             pbar.set_postfix(status)
     returncode = proc.wait()
     if returncode != 0:
