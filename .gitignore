@@ -49,3 +49,8 @@ data-old
 /VulnerabilityDetectionResearch
 /DeepWukong
 /FUNDED_NISL
+/refactor_diag_all.sh.log.broken-diff
+/*.tgz
+/*.txt
+/output/
+/VulnerabilityDetectionResearch/IVDetect/data/input_data/processed_full.bin
