@@ -23,10 +23,8 @@ import random
 
 import logging
 
-logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-                    datefmt='%Y-%m-%d:%H:%M:%S',
-                    level=logging.INFO)
-logger = logging.getLogger()
+# logger = logging.getLogger()
+# logger.addHandler(logging.StreamHandler())
 
 def do_one(t):
     (idx, fn), (args, all_refactorings) = t
@@ -40,10 +38,10 @@ def do_one(t):
         if new_lines is not None:
             return idx, fn["file_name"], ''.join(new_lines), [f.__name__ for f in applied]
         else:
-            logger.warning('idx %d filename %s not transformed', idx, fn["file_name"])
+            print('WARNING: idx %d filename %s not transformed', idx, fn["file_name"])
             return idx, fn["file_name"], new_lines, [f.__name__ for f in applied]
     except Exception as e:
-        logger.exception('idx %d filename %s had an error', idx, fn["file_name"], exc_info=e)
+        print('ERROR: idx %d filename %s had an error', idx, fn["file_name"], exc_info=e)
     finally:
         pass
 
@@ -66,6 +64,7 @@ def main(cmd_args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', "--input_dir", help="Input source code files")
     parser.add_argument('-o', "--output_dir", help="Output refactored source code files", default='./refactored_code')
+    parser.add_argument('-p', "--read_pickle_dir", help="Read pickles from an alternative directory")
     parser.add_argument('--nproc', default='detect')
     parser.add_argument('--mode', default='gen')
     parser.add_argument('--slice', default=None)
@@ -88,7 +87,8 @@ def main(cmd_args=None):
         'threshold': 2,
     }
     args.style_type = args.style.pop(0)
-    assert args.style_type in style_args, f'unknown option --style {args.style[0]}'
+    print(f'args.style_type: {args.style_type}')
+    assert args.style_type in style_args, f'unknown option --style {args.style_type} ({args.style})'
     assert len(args.style) == style_args[args.style_type], f'expected {style_args[args.style_type]} args for --style {args.style_type}, got {len(args.style)}'
 
     try:
@@ -106,7 +106,10 @@ def main(cmd_args=None):
     args.output_dir = Path(args.output_dir)
     if not args.output_dir.exists():
         args.output_dir.mkdir(parents=True)
-    logging.getLogger().addHandler(logging.FileHandler(str(args.output_dir / f'refactor_reveal-{args.mode}.log')))
+    # logging.getLogger().addHandler(logging.FileHandler(str(args.output_dir / f'refactor_reveal-{args.mode}.log')))
+
+    if args.read_pickle_dir is not None:
+        args.read_pickle_dir = Path(args.read_pickle_dir)
 
     random.seed(args.seed)
 
@@ -117,29 +120,29 @@ def main(cmd_args=None):
     if args.shuffle_refactorings:
         random.shuffle(all_refactorings)
 
-    logging.info(f'random seed: {args.seed}')
-    logging.info(f'shuffle refactorings: {args.shuffle_refactorings} {[r.__name__ for r in all_refactorings]}')
-    logging.info(f'transformation style: {args.style_type} {args.style}')
-    logging.info(f'nproc: {nproc}/{max_nproc}')
+    print(f'random seed: {args.seed}')
+    print(f'shuffle refactorings: {args.shuffle_refactorings} {[r.__name__ for r in all_refactorings]}')
+    print(f'transformation style: {args.style_type} {args.style}')
+    print(f'nproc: {nproc}/{max_nproc}')
     if args.clean:
         existing_shards, _ = get_shards(args.output_dir)
-        logger.info(f'cleaning shards {[str(s) for s in existing_shards]}')
+        print(f'cleaning shards {[str(s) for s in existing_shards]}')
         for s in existing_shards:
             s.unlink()
 
     input_dir = Path(args.input_dir)
     total = len(list((input_dir / 'raw_code').glob('*')))
-    logger.info('%d samples', total)
+    print(f'{total} samples')
     cfiles = get_input_files(input_dir)
     if args.test is not None:
-        logger.info('cutting to %d samples', args.test)
+        print('cutting to %d samples', args.test)
         cfiles = itertools.islice(cfiles, 0, args.test)
-    logger.info(f'reading inputs...')
+    print(f'reading inputs...')
     raw_code_input = read_input(cfiles, read_code=True)
     if args.mode == 'gen':
         generate(raw_code_input, total, args, nproc, all_refactorings)
     elif args.mode == 'diag':
-        diag(cfiles, args.output_dir, all_refactorings)
+        diag(cfiles, args.output_dir, all_refactorings, args.read_pickle_dir)
 
 
 def generate(raw_code_input, total, args, nproc, all_refactorings):
@@ -150,7 +153,7 @@ def generate(raw_code_input, total, args, nproc, all_refactorings):
         begin, end = int(begin), int(end)
         func_it = itertools.islice(func_it, begin, end)
     shard_len = args.shard_len
-    logger.info('nproc: %d', nproc)
+    print('nproc: %d', nproc)
 
     if args.buggy_only:
         func_it = (f for f in func_it if f[1]["label"] == 1)
@@ -175,15 +178,18 @@ def generate(raw_code_input, total, args, nproc, all_refactorings):
             save_shard(new_functions)
 
 
-def diag(cfiles, output_dir, all_refactorings):
-    new_functions = load_old_functions(output_dir)
+def diag(cfiles, output_dir, all_refactorings, read_pickle_dir=None):
+    if read_pickle_dir is not None:
+        new_functions = load_old_functions(read_pickle_dir)
+    else:
+        new_functions = load_old_functions(output_dir)
     if len(new_functions) == 0:
-        logger.error('No refactored functions. Quitting.')
+        print('ERROR: No refactored functions. Quitting.')
         exit(1)
     function_paths = list(cfiles)
     showed = 0
     show_n_programs = 3
-    logger.info('counting diffs...')
+    print('counting diffs...')
     applied_counts = defaultdict(int)  # Count of how many programs had a transformation applied
     num_applied = []  # Number of transformations applied to each program
     num_blank_lines = []  # Number of blank lines in each program's code
@@ -192,6 +198,7 @@ def diag(cfiles, output_dir, all_refactorings):
     percent_changed_lines = []  # Percent of lines changed in each program's code
     total_switches = 0  # Number of programs containing "switch"
     total_loops = 0  # Number of programs containing "for"
+    total_noswitchnoloop = 0
     for i, filename, new_code, applied in tqdm.tqdm(new_functions):
         with open(next(fp for fp in function_paths if fp.name == filename)) as f:
             old_code = f.read()
@@ -201,6 +208,7 @@ def diag(cfiles, output_dir, all_refactorings):
         # num_applied.append(len(applied))
         # TODO: This needs to use unified_diff or something that merges modified lines
         # prog_num_changed_lines = len([line for line in diff if line[:2] in ('- ', '+ ')])
+
         tmp1, tmp2 = tempfile.mktemp(), tempfile.mktemp()
         try:
             with open(tmp1, 'w') as f:
@@ -216,10 +224,12 @@ def diag(cfiles, output_dir, all_refactorings):
                 os.unlink(tmp2)
 
         old_lines = old_code.splitlines(keepends=True)
+
         # new_lines = new_code.splitlines(keepends=True)
         # diff = difflib.ndiff(old_lines, new_lines)
         # diff = difflib.unified_diff(old_lines, new_lines)
         # prog_num_changed_lines = len([line for line in diff if line[0] in ('-', '+') and line[:3] not in ('---', '+++')])
+
         prog_num_lines = len([line for line in old_lines])
         num_changed_lines.append(prog_num_changed_lines)
         num_lines.append(prog_num_lines)
@@ -232,10 +242,16 @@ def diag(cfiles, output_dir, all_refactorings):
         #     total_switches += 1
         # if 'for' in old_code:
         #     total_loops += 1
+        has_switch = False
+        has_loop = False
         if re.search(r'switch\s*\(', old_code, flags=re.MULTILINE):
             total_switches += 1
+            has_switch = True
         if re.search(r'for\s*\(', old_code, flags=re.MULTILINE):
             total_loops += 1
+            has_loop = True
+        if not has_switch and not has_loop:
+            total_noswitchnoloop += 1
 
         if showed < show_n_programs:
             print('Filename:', filename)
@@ -246,10 +262,10 @@ def diag(cfiles, output_dir, all_refactorings):
             # print('Diff:', ''.join(difflib.unified_diff(old_lines, new_lines, fromfile=filename, tofile=filename)))
             showed += 1
 
-        # del old_code
-        # del old_lines
+        del old_code
+        del old_lines
         # del new_lines
-    # for print_function in (logger.info, print):
+    # for print_function in (print, print):
         # averages
         # print_function(f'Average # lines in program: {sum(num_lines) / len(new_functions):.2f}')
         # print_function(f'Average # blank lines: {sum(num_blank_lines) / len(new_functions):.2f}')
@@ -267,6 +283,7 @@ def diag(cfiles, output_dir, all_refactorings):
     print('***** Total programs:', len(new_functions))
     print(f'***** # programs with switch: {total_switches}')
     print(f'***** # programs with for loop: {total_loops}')
+    print(f'***** # programs with no switch or for loop: {total_noswitchnoloop}')
     for v in sorted(set(applied_counts)):
         print(f'***** {v} transformations applied: {applied_counts[v]}')
     print(f'***** Average # blank lines: {sum(num_blank_lines) / len(new_functions):.2f}')
@@ -280,15 +297,23 @@ def diag(cfiles, output_dir, all_refactorings):
 def load_old_functions(output_dir):
     new_functions = []
     old_shards, _ = get_shards(output_dir)
-    logger.info('%d shards', len(old_shards))
+    print('%d shards', len(old_shards))
+    # if len(old_shards) == 0:
+    #     rp_dir = output_dir / 'refactored_pickle'
+    #     print(f'trying to load shards from {rp_dir}')
+    #     old_shards, _ = get_shards(rp_dir)
+    #     print('%d shards', len(old_shards))
     for shard in old_shards:
         with open(shard, 'rb') as f:
             shard_new_functions = pickle.load(f)
-            logger.info('%d functions in shard %s', len(shard_new_functions), shard)
+            print('%d functions in shard %s', len(shard_new_functions), shard)
             new_functions.extend(shard_new_functions)
-    logger.info('%d functions total', len(new_functions))
+    print('%d functions total', len(new_functions))
     return new_functions
 
 
 if __name__ == '__main__':
+    # logging.basicConfig(format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+    #                     datefmt='%Y-%m-%d:%H:%M:%S',
+    #                     level=print)
     main()

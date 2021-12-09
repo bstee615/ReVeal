@@ -9,9 +9,9 @@ import subprocess
 import argparse
 
 
-formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler())
+# formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+# logger = logging.getLogger(__name__)
+# logger.addHandler(logging.StreamHandler())
 
 
 default_stages = [
@@ -28,10 +28,8 @@ def main():
     parser.add_argument("--output_dir", help="Where to output results", default='output')
     parser.add_argument("--skip", help="Stages to skip", choices=default_stages, nargs='*')
     parser.add_argument("--vanilla", action='store_true', help='No refactoring')
-    parser.add_argument('--buggy_only_augmented', help='only add buggy samples when augmenting', action='store_true')
 
     parser.add_argument("--n_folds", type=int)
-    parser.add_argument("--ray", action='store_true')
     args = parser.parse_args()
 
     print(__name__, 'args:', args)
@@ -55,6 +53,9 @@ def main():
     else:
         name = '_'.join([os.path.basename(input_dir), *refactor_options])
     output_dir = os.path.join(args.output_dir, name)
+    for i in range(9):
+        my_output_dir = output_dir + f'_{i}'
+        os.makedirs(my_output_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
     refactored_output = os.path.join(output_dir, 'refactored_pickle')
     preprocessed_output = os.path.join(output_dir, 'preprocessed_output')
@@ -63,12 +64,12 @@ def main():
     model = args.model
 
     # Set up logging
-    handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    handler = logging.FileHandler(os.path.join(output_dir, 'combined.log'))
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    # handler = logging.StreamHandler()
+    # handler.setFormatter(formatter)
+    # logger.addHandler(handler)
+    # handler = logging.FileHandler(os.path.join(output_dir, 'combined.log'))
+    # handler.setFormatter(formatter)
+    # logger.addHandler(handler)
 
     # Start
     print(f'Name: {name}')
@@ -78,42 +79,56 @@ def main():
         print(f'begin stage: {stage}')
         try:
             do_stage(stage, model, input_dir, output_dir, refactored_output, preprocessed_output, refactor_options,
-                     vanilla, args.buggy_only_augmented, args.ray)
+                     vanilla)
         except Exception:
             print(f'errored stage: {stage}')
             raise
 
 
+def get_proj_dir(dir):
+    norm_dir = os.path.normpath(dir)
+    dir_parts = norm_dir.split('/')
+    return dir_parts[-2]
+
+
+def replace_proj_dir(dir, replace):
+    norm_dir = os.path.normpath(dir)
+    dir_parts = norm_dir.split('/')
+    dir_parts[-2] = replace
+    return os.path.join(*dir_parts)
+
+
 def do_stage(stage, model_type, input_dir, output_dir, refactored_output_dir, preprocessed_output_dir, refactor_options,
-             vanilla, buggy_only_augmented=False, ray=False, test=False):
+             vanilla, test=False):
     if test:
         print(f'DO STAGE {stage}')
         return
     if stage == 'refactor_reveal':
-        do_refactor_reveal(input_dir, refactor_options, refactored_output_dir)
+        for i in range(9):
+            my_refactored_output_dir = replace_proj_dir(refactored_output_dir, get_proj_dir(refactored_output_dir) + f'_{i}')
+            do_refactor_reveal(input_dir, refactor_options + ['seed', i], my_refactored_output_dir)
     if stage == 'add_refactored_code':
-        do_add_refactored_code(output_dir, refactored_output_dir)
+        for i in range(9):
+            my_output_dir = output_dir + f'_{i}'
+            my_refactored_output_dir = replace_proj_dir(refactored_output_dir, get_proj_dir(refactored_output_dir) + f'_{i}')
+            do_add_refactored_code(my_output_dir, my_refactored_output_dir)
     if stage == 'preprocess':
-        do_preprocess(input_dir, output_dir, preprocessed_output_dir, vanilla, buggy_only_augmented)
+        my_output_dirs = []
+        for i in range(9):
+            my_output_dirs.append(output_dir + f'_{i}')
+        my_output_dir = ' '.join(my_output_dirs)
+        do_preprocess(input_dir, my_output_dir, preprocessed_output_dir, vanilla)
     if stage == 'Devign-preprocess':
         do_Devign_preprocess(preprocessed_output_dir)
     if stage == 'train':
-        do_train(model_type, preprocessed_output_dir, ray)
+        do_train(model_type, preprocessed_output_dir)
     print(f'end stage: {stage}')
 
 
-def do_train(model_type, preprocessed_output_dir, ray):
-    if model_type == 'both':
-        cmd = f'bash batch_model.sh reveal {preprocessed_output_dir} {"--ray" if ray else ""}'
-        print(f'Command: {cmd}')
-        subprocess.check_call(cmd, shell=True)
-        cmd = f'bash batch_model.sh devign {preprocessed_output_dir} {"--ray" if ray else ""}'
-        print(f'Command: {cmd}')
-        subprocess.check_call(cmd, shell=True)
-    else:
-        cmd = f'bash batch_model.sh {model_type} {preprocessed_output_dir} {"--ray" if ray else ""}'
-        print(f'Command: {cmd}')
-        subprocess.check_call(cmd, shell=True)
+def do_train(model_type, preprocessed_output_dir):
+    cmd = f'bash batch_model.sh {model_type} {preprocessed_output_dir}'
+    print(f'Command: {cmd}')
+    subprocess.check_call(cmd, shell=True)
 
 
 def do_Devign_preprocess(preprocessed_output_dir):
@@ -123,12 +138,12 @@ def do_Devign_preprocess(preprocessed_output_dir):
     devign_main.main(cmd.split())
 
 
-def do_preprocess(input_dir, output_dir, preprocessed_output_dir, vanilla, buggy_only_augmented):
+def do_preprocess(input_dir, output_dir, preprocessed_output_dir, vanilla):
     from data_processing import preprocess
     if vanilla:
-        cmd = f'--input {input_dir} --output {preprocessed_output_dir} {"--buggy_only_augmented" if buggy_only_augmented else ""}'
+        cmd = f'--input {input_dir} --output {preprocessed_output_dir}'
     else:
-        cmd = f'--input {input_dir} {output_dir} --output {preprocessed_output_dir} {"--buggy_only_augmented" if buggy_only_augmented else ""}'
+        cmd = f'--input {input_dir} {output_dir} --output {preprocessed_output_dir}'
     print(f'Command: {cmd}')
     preprocess.main(cmd.split())
 
@@ -151,7 +166,7 @@ def do_refactor_reveal(input_dir, refactor_options, refactored_output_dir):
     if 'threshold' in refactor_options:
         threshold_value = refactor_options[refactor_options.index('threshold') + 1]
         refactor_args.append(f'--style threshold {threshold_value} 10')
-    if 'buggonly' in refactor_options:
+    if 'buggyonly' in refactor_options:
         refactor_args.append('--buggy_only')
     if 'seed' in refactor_options:
         seed_value = refactor_options[refactor_options.index('seed') + 1]

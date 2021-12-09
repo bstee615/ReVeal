@@ -36,12 +36,14 @@ class RepresentationLearningModel(BaseEstimator):
     def fit(self, train_x, train_y):
         self.train(train_x, train_y)
 
-    def train(self, train_x, train_y, valid_x, valid_y, test_x, test_y, save_path):
+    def train(self, train_x, train_y, valid_x, valid_y, test_x, test_y, save_path, ray=False):
         input_dim = train_x.shape[1]
         self.model = MetricLearningModel(
             input_dim=input_dim, hidden_dim=self.hidden_dim, aplha=self.alpha, lambda1=self.lambda1,
             lambda2=self.lambda2, dropout_p=self.dropout, num_layers=self.num_layers
         )
+        logger.info(f'Model: {self.model}')
+        logger.info(f'Hyperparameters: dropout_p={self.dropout}, aplha={self.alpha}, lambda1={self.lambda1}, lambda2={self.lambda2}, num_layers={self.num_layers}')
         self.optimizer = Adam(self.model.parameters())
         if self.cuda:
             self.model.cuda(device=0)
@@ -65,7 +67,7 @@ class RepresentationLearningModel(BaseEstimator):
         train(
             model=self.model, dataset=self.dataset, optimizer=self.optimizer,
             save_path=save_path, num_epochs=self.num_epoch, max_patience=self.max_patience,
-            cuda_device=0 if self.cuda else -1
+            cuda_device=0 if self.cuda else -1, ray=ray
         )
         logger.info('Training Complete')
 

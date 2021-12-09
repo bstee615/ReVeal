@@ -1,0 +1,31 @@
+[benjis@pronto ReVeal]$ bash refactor_diag_queue_all.sh
++ sbatch cpu_batch.sh bash refactor_diag.sh python -u data_processing/refactor_reveal.py --mode diag -i data/devign -o output_thresholds/devign_threshold_0.25/refactored_pickle
+Submitted batch job 602541
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/devign -o output_thresholds/devign_threshold_0.75/refactored_pickle
+Submitted batch job 602542
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/devign -o output_thresholds/devign_threshold_1.0/refactored_pickle
+Submitted batch job 602543
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/devign -o output_thresholds/devign_no-new-names_threshold_0.25/refactored_pickle
+Submitted batch job 602544
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/devign -o output_thresholds/devign_no-new-names_threshold_1.0/refactored_pickle
+Submitted batch job 602545
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/devign -o output/devign_threshold_0.5_no-new-names/refactored_pickle
+Submitted batch job 602546
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/devign -o output/devign_no-new-names_threshold_0.75/refactored_pickle
+Submitted batch job 602547
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/chrome_debian -o output_thresholds/chrome_debian_threshold_0.25/refactored_pickle
+Submitted batch job 602548
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/chrome_debian -o output_thresholds/chrome_debian_threshold_0.5/refactored_pickle
+Submitted batch job 602549
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/chrome_debian -o output_thresholds/chrome_debian_threshold_0.75/refactored_pickle
+Submitted batch job 602550
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/chrome_debian -o output_thresholds/chrome_debian_threshold_1.0/refactored_pickle
+Submitted batch job 602551
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/chrome_debian -o output_thresholds/chrome_debian_no-new-names_threshold_0.25/refactored_pickle
+Submitted batch job 602552
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/chrome_debian -o output_thresholds/chrome_debian_no-new-names_threshold_0.5/refactored_pickle
+Submitted batch job 602553
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/chrome_debian -o output_thresholds/chrome_debian_no-new-names_threshold_0.75/refactored_pickle
+Submitted batch job 602554
++ sbatch cpu_batch.sh python -u data_processing/refactor_reveal.py --mode diag -i data/chrome_debian -o output_thresholds/chrome_debian_no-new-names_threshold_1.0/refactored_pickle
+Submitted batch job 602555

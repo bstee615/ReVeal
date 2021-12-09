@@ -42,3 +42,10 @@ results_*
 out_refactored
 data_refactored
 data-old
+/*.pstat
+/test
+/test.c
+
+/VulnerabilityDetectionResearch
+/DeepWukong
+/FUNDED_NISL

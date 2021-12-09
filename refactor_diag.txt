@@ -1,0 +1,30 @@
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/devign_threshold_0.25
+Submitted batch job 602511
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/devign_threshold_0.75
+Submitted batch job 602512
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/devign_threshold_1.0
+Submitted batch job 602513
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/chrome_debian_threshold_1.0
+Submitted batch job 602514
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/chrome_debian_threshold_0.75
+Submitted batch job 602515
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/chrome_debian_threshold_0.5
+Submitted batch job 602516
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/chrome_debian_threshold_0.25
+Submitted batch job 602517
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/chrome_debian_no-new-names_threshold_0.25/
+Submitted batch job 602518
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/chrome_debian_no-new-names_threshold_0.5
+Submitted batch job 602519
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/chrome_debian_no-new-names_threshold_0.75
+Submitted batch job 602520
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/chrome_debian_no-new-names_threshold_1.0
+Submitted batch job 602521
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/devign_no-new-names_threshold_0.25
+Submitted batch job 602522
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output_thresholds/devign_no-new-names_threshold_1.0
+Submitted batch job 602523
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output/devign_threshold_0.5_no-new-names
+Submitted batch job 602524
+[benjis@pronto ReVeal]$ sbatch cpu_batch.sh bash refactor_diag.sh output/devign_no-new-names_threshold_0.75
+Submitted batch job 602525
